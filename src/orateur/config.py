@@ -41,10 +41,8 @@ class ConfigManager:
             "llm_model": "llama3.2",
             "llm_system_prompt": "You are a helpful assistant. Respond concisely.",
             "llm_base_url": "http://localhost:11434",
-            "llm_mcp_transport": "stdio",
-            "llm_mcp_url": None,
-            "llm_mcp_tool": "llm_generate",
             "mcpServers": {},
+            "mcp_tools_url": None,
             "paste_mode": "ctrl_shift",
             "paste_keycode": 47,
         }

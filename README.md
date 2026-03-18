@@ -7,7 +7,7 @@ Minimal python local speech-to-text, text-to-speech and speech-to-speech assista
 - **STT**: Whisper (pywhispercpp) for transcription
 - **TTS**: Pocket TTS for text-to-speech
 - **STS**: Speech-to-Speech (STT → Ollama/LLM → TTS)
-- **MCP**: LLM plugin system via Model Context Protocol
+- **MCP**: Tool providers via Model Context Protocol (Ollama uses them as function tools)
 - **Shortcuts**: Global keyboard shortcuts (evdev)
 - **Systemd**: Background service with pre-loaded models
 
@@ -85,9 +85,9 @@ orateur config init
 orateur config show
 ```
 
-### MCP servers (Cursor-style)
+### MCP tools (Ollama)
 
-Define MCP servers in `mcpServers`. The LLM has access to all of them: one must expose `llm_generate` for STS, and tools from every server are aggregated for the LLM to use.
+MCP servers provide tools that Ollama can call during STS. Define them in `mcpServers` (stdio) and optionally `mcp_tools_url` (SSE). All tools are passed to the LLM; when it returns tool calls, they are executed via MCP and the results fed back.
 
 ```json
 {
@@ -95,19 +95,14 @@ Define MCP servers in `mcpServers`. The LLM has access to all of them: one must 
     "weather-forecast": {
       "command": "uvx",
       "args": ["weather-forecast-server"]
-    },
-    "my-llm": {
-      "command": "uvx",
-      "args": ["my-mcp-llm-package"]
     }
   },
-  "llm_backend": "mcp"
+  "mcp_tools_url": "http://localhost:8050/sse"
 }
 ```
 
-- **mcpServers**: Named servers with `command` and `args` (Cursor-compatible)
-- One server must expose `llm_generate` or `llm_chat` for STS
-- Tools from all servers are passed to the LLM
+- **mcpServers**: Named stdio servers with `command` and `args` (Cursor-compatible)
+- **mcp_tools_url**: Optional SSE URL for an MCP tool server
 
 List configured servers with `orateur mcp list`.
 

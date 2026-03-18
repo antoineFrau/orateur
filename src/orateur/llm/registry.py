@@ -1,19 +1,23 @@
 """LLM backend registry."""
 
+import logging
 from typing import Optional, Type
 
 from .base import LLMBackend
-from .mcp import MCPLLMBackend
 from .ollama import OllamaBackend
+
+log = logging.getLogger(__name__)
 
 _BACKENDS: dict[str, Type[LLMBackend]] = {
     "ollama": OllamaBackend,
-    "mcp": MCPLLMBackend,
 }
 
 
 def get_llm_backend(name: str, config) -> Optional[LLMBackend]:
     """Get and initialize an LLM backend by name."""
+    if name == "mcp":
+        log.warning("llm_backend 'mcp' is deprecated, using 'ollama' instead")
+        name = "ollama"
     cls = _BACKENDS.get(name)
     if cls is None:
         return None
