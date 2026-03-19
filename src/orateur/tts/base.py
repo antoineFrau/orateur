@@ -64,6 +64,18 @@ class TTSBackend(ABC):
                 continue
         return False
 
+    def estimate_duration(self, text: str) -> float:
+        """
+        Estimate TTS duration in seconds from text (heuristic).
+        ~150 words/min ≈ 2.5 words/sec; fallback ~4 chars/sec.
+        """
+        if not text or not text.strip():
+            return 0.0
+        words = len(text.split())
+        if words > 0:
+            return words / 2.5
+        return len(text) / 15.0
+
     def is_ready(self) -> bool:
         """Check if backend is ready."""
         return True

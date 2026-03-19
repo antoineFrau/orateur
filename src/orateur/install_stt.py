@@ -96,12 +96,42 @@ def _is_linux_x86_64() -> bool:
     return platform.system() == "Linux" and platform.machine() in ("x86_64", "AMD64")
 
 
-def _build_pywhispercpp_cuda_from_source() -> bool:
+def _pywhispercpp_installed() -> tuple[bool, Optional[str]]:
+    """Return (installed, backend) where backend is 'cuda' or 'cpu' or None.
+
+    CUDA: editable install from PYWHISPERCPP_SRC_DIR.
+    CPU: installed from PyPI/site-packages.
+    """
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("pywhispercpp")
+        if not spec or not spec.origin:
+            return (False, None)
+        origin = Path(spec.origin).resolve()
+        src_dir = PYWHISPERCPP_SRC_DIR.resolve()
+        # Editable install: origin lives under our pywhispercpp-src dir
+        try:
+            origin.relative_to(src_dir)
+            return (True, "cuda")
+        except ValueError:
+            pass
+        return (True, "cpu")
+    except Exception:
+        return (False, None)
+
+
+def _build_pywhispercpp_cuda_from_source(force: bool = False) -> bool:
     """Build pywhispercpp from source with CUDA via editable install.
 
     Clones to a fixed dir and uses pip install -e so .so files link to system
     CUDA. Avoids bundled lib conflicts that cause init errors.
     """
+    if not force:
+        installed, backend = _pywhispercpp_installed()
+        if installed and backend == "cuda":
+            log.info("pywhispercpp (CUDA) already installed, skipping")
+            return True
+
     compute_cap = _detect_compute_capability()
     if not compute_cap:
         log.error("Could not detect GPU compute capability (nvidia-smi --query-gpu=compute_cap)")
@@ -142,13 +172,11 @@ def _build_pywhispercpp_cuda_from_source() -> bool:
         subprocess.run(["git", "-C", str(PYWHISPERCPP_SRC_DIR), "fetch", "--tags"], capture_output=True, timeout=30)
         subprocess.run(["git", "-C", str(PYWHISPERCPP_SRC_DIR), "submodule", "update", "--init", "--recursive"], check=True, timeout=60)
 
+    pip_args = [str(pip_bin), "install", "-e", str(PYWHISPERCPP_SRC_DIR)]
+    if force:
+        pip_args.extend(["--no-cache-dir", "--force-reinstall"])
     try:
-        result = subprocess.run(
-            [str(pip_bin), "install", "-e", str(PYWHISPERCPP_SRC_DIR),
-             "--no-cache-dir", "--force-reinstall"],
-            env=env,
-            timeout=600,
-        )
+        result = subprocess.run(pip_args, env=env, timeout=600)
         if result.returncode == 0:
             log.info("pywhispercpp (CUDA) built and installed successfully")
             return True
@@ -161,14 +189,31 @@ def _build_pywhispercpp_cuda_from_source() -> bool:
         return False
 
 
-def install_pywhispercpp(backend: Optional[str] = None) -> bool:
+def install_pywhispercpp(backend: Optional[str] = None, force: bool = False) -> bool:
     """Detect GPU/CUDA and install pywhispercpp.
 
     backend: Optional override. 'nvidia' = detect CUDA and build from source;
              'cpu' = use PyPI CPU wheel; None = auto-detect.
+    force: If True, reinstall even when already installed.
     """
+    if not force:
+        installed, current_backend = _pywhispercpp_installed()
+        if installed:
+            if backend == "cpu":
+                want_cuda = False
+            elif backend == "nvidia":
+                want_cuda = True
+            else:
+                want_cuda = bool(_detect_cuda_version() and _is_linux_x86_64())
+            if want_cuda and current_backend == "cuda":
+                log.info("pywhispercpp (CUDA) already installed, skipping")
+                return True
+            if not want_cuda and current_backend == "cpu":
+                log.info("pywhispercpp (CPU) already installed, skipping")
+                return True
+
     if backend == "cpu":
-        return _install_from_pypi()
+        return _install_from_pypi(force=force)
 
     if backend == "nvidia":
         cuda_version = _detect_cuda_version()
@@ -177,19 +222,19 @@ def install_pywhispercpp(backend: Optional[str] = None) -> bool:
             return False
         if not _is_linux_x86_64():
             log.warning("CUDA build from source only supported on Linux x86_64. Using PyPI (CPU).")
-            return _install_from_pypi()
+            return _install_from_pypi(force=force)
         log.info("Detected CUDA %s -> building from source...", cuda_version)
-        return _build_pywhispercpp_cuda_from_source()
+        return _build_pywhispercpp_cuda_from_source(force=force)
 
     # Auto-detect
     cuda_version = _detect_cuda_version()
     if not cuda_version:
-        return _install_from_pypi()
+        return _install_from_pypi(force=force)
     if not _is_linux_x86_64():
         log.warning("CUDA build only on Linux x86_64. Using PyPI (CPU).")
-        return _install_from_pypi()
+        return _install_from_pypi(force=force)
     log.info("Detected CUDA %s -> building from source...", cuda_version)
-    return _build_pywhispercpp_cuda_from_source()
+    return _build_pywhispercpp_cuda_from_source(force=force)
 
 
 def _project_root() -> Path:
@@ -255,13 +300,13 @@ def _get_pip_bin() -> Optional[Path]:
     return pip_bin if pip_bin.exists() else None
 
 
-def _run_venv_pip(args: list[str]) -> bool:
+def _run_venv_pip(args: list[str], force: bool = False) -> bool:
     """Run pip install in the target venv (fixed venv or current venv)."""
     pip_bin = _get_pip_bin()
     if not pip_bin:
         log.error("No pip found. Run from project with uv: uv run orateur setup")
         return False
-    cmd = [str(pip_bin), "install", "--force-reinstall"] + args
+    cmd = [str(pip_bin), "install"] + (["--force-reinstall"] if force else []) + args
     try:
         result = subprocess.run(cmd, timeout=120)
         return result.returncode == 0
@@ -273,9 +318,9 @@ def _run_venv_pip(args: list[str]) -> bool:
         return False
 
 
-def _install_from_pypi() -> bool:
+def _install_from_pypi(force: bool = False) -> bool:
     """Install pywhispercpp from PyPI (CPU)."""
-    if _run_venv_pip(["pywhispercpp>=1.4.0"]):
+    if _run_venv_pip(["pywhispercpp>=1.4.0"], force=force):
         log.info("pywhispercpp (CPU) installed from PyPI")
         return True
     return False

@@ -4,7 +4,9 @@ import logging
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
+
+import numpy as np
 
 from .base import TTSBackend
 
@@ -95,6 +97,7 @@ class PocketTTSBackend(TTSBackend):
         text: str,
         voice: Optional[str] = None,
         volume: Optional[float] = None,
+        level_callback: Optional[Callable[[float], None]] = None,
     ) -> bool:
         if not text or not text.strip():
             return False
@@ -107,7 +110,6 @@ class PocketTTSBackend(TTSBackend):
             wav = self.synthesize(text, voice)
             return wav and self._play_file(wav, vol)
         try:
-            import numpy as np
             voice_state = self._get_voice_state(voice)
             proc = subprocess.Popen(
                 cmd,
@@ -122,6 +124,14 @@ class PocketTTSBackend(TTSBackend):
                 arr = np.asarray(arr)
                 if arr.dtype.kind == "f":
                     arr = (np.clip(arr, -1.0, 1.0) * 32767).astype(np.int16)
+                if level_callback is not None and len(arr) > 0:
+                    # Convert int16 back to float for RMS: arr/32768
+                    float_arr = arr.astype(np.float32) / 32768.0
+                    rms = float(np.sqrt(np.mean(float_arr ** 2)))
+                    try:
+                        level_callback(rms)
+                    except Exception as e:
+                        log.debug("level_callback error: %s", e)
                 proc.stdin.write(arr.tobytes())
                 proc.stdin.flush()
             proc.stdin.close()

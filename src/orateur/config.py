@@ -45,6 +45,12 @@ class ConfigManager:
             "mcp_tools_url": None,
             "paste_mode": "ctrl_shift",
             "paste_keycode": 47,
+            # Append UI events to ~/.cache/orateur/ui_events.jsonl for Quickshell (tail -F).
+            "quickshell_ui_mirror": False,
+            # Spawn `quickshell -c orateur` when `orateur run` starts (e.g. systemd).
+            "quickshell_autostart": False,
+            # notify-send when `orateur run` is ready / on shutdown (set false for headless).
+            "desktop_notifications": True,
         }
 
         self.config_dir = CONFIG_DIR

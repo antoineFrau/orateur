@@ -9,6 +9,9 @@ import sys
 import time
 
 from .audio_capture import AudioCapture
+from .audio_utils import audio_to_levels
+from . import ui_mirror
+from . import quickshell_spawn
 
 log = logging.getLogger(__name__)
 from .stt import get_stt_backend
@@ -18,6 +21,7 @@ from .shortcuts import ShortcutManager
 from .text_injector import TextInjector
 from .config import ConfigManager
 from .sts_pipeline import run_sts
+from .desktop_notify import notify as desktop_notify
 
 
 def _get_text_from_selection(config) -> str:
@@ -41,6 +45,8 @@ def run(config: ConfigManager | None = None) -> None:
     """Run the main loop (used by systemd)."""
     config = config or ConfigManager()
 
+    ui_mirror.reset_ui_events_file()
+
     log.info("Loading STT...")
     stt = get_stt_backend(config.get_setting("stt_backend", "pywhispercpp"), config)
     if not stt or not stt.is_ready():
@@ -62,46 +68,109 @@ def run(config: ConfigManager | None = None) -> None:
 
     recording_for = [None]  # "stt" | "stt_secondary" | "sts" | None
 
+    def m(event: str, **payload) -> None:
+        ui_mirror.send(config, event, **payload)
+
     def on_primary():
         if recording_for[0] == "stt":
             recording_for[0] = None
             data = audio.stop_recording()
-            if data is not None:
+            if data is None:
+                m("error", message="No audio recorded")
+                return
+            m("recording_stopped", levels=audio_to_levels(data, 60))
+            m("transcribing")
+            try:
                 text = stt.transcribe(data)
-                if text:
-                    injector.inject_text(text)
+            except Exception as e:
+                log.exception("Transcription failed")
+                m("error", message=str(e))
+                return
+            m("transcribed", text=text or "")
+            if text:
+                injector.inject_text(text)
         else:
             recording_for[0] = "stt"
-            audio.start_recording()
+
+            def on_level(rms: float) -> None:
+                m("recording", level=rms)
+
+            if audio.start_recording(level_callback=on_level):
+                m("recording_started", mode="stt")
+            else:
+                m("error", message="Failed to start recording")
 
     def on_secondary():
         if recording_for[0] == "stt_secondary":
             recording_for[0] = None
             data = audio.stop_recording()
-            if data is not None:
-                lang = config.get_setting("stt_language_secondary")
-                prompt = config.get_setting("stt_whisper_prompt_secondary")
+            if data is None:
+                m("error", message="No audio recorded")
+                return
+            m("recording_stopped", levels=audio_to_levels(data, 60))
+            m("transcribing")
+            lang = config.get_setting("stt_language_secondary")
+            prompt = config.get_setting("stt_whisper_prompt_secondary")
+            try:
                 text = stt.transcribe(data, language_override=lang, prompt_override=prompt)
-                if text:
-                    injector.inject_text(text)
+            except Exception as e:
+                log.exception("Transcription failed")
+                m("error", message=str(e))
+                return
+            m("transcribed", text=text or "")
+            if text:
+                injector.inject_text(text)
         else:
             recording_for[0] = "stt_secondary"
-            audio.start_recording()
+
+            def on_level_sec(rms: float) -> None:
+                m("recording", level=rms)
+
+            if audio.start_recording(level_callback=on_level_sec):
+                m("recording_started", mode="stt")
+            else:
+                m("error", message="Failed to start recording")
 
     def on_sts():
         if recording_for[0] == "sts":
             recording_for[0] = None
             data = audio.stop_recording()
-            if data is not None:
-                run_sts(config, data, stt=stt, tts=tts, llm=llm)
+            if data is None:
+                m("error", message="No audio recorded")
+                return
+            m("recording_stopped", levels=audio_to_levels(data, 60))
+
+            def ui_m(ev: str, **kw) -> None:
+                ui_mirror.send(config, ev, **kw)
+
+            run_sts(config, data, stt=stt, tts=tts, llm=llm, ui_mirror=ui_m)
         else:
             recording_for[0] = "sts"
-            audio.start_recording()
+
+            def on_level_sts(rms: float) -> None:
+                m("recording", level=rms)
+
+            if audio.start_recording(level_callback=on_level_sts):
+                m("recording_started", mode="sts")
+            else:
+                m("error", message="Failed to start recording")
 
     def on_tts():
         text = _get_text_from_selection(config)
-        if text and tts and tts.is_ready():
-            tts.synthesize_and_play(text)
+        if not text or not tts or not tts.is_ready():
+            return
+        duration_sec = tts.estimate_duration(text)
+        m("tts_estimate", duration_sec=duration_sec)
+        m("tts_playing")
+
+        def on_lvl(level: float) -> None:
+            m("tts_level", level=level)
+
+        try:
+            ok = tts.synthesize_and_play(text, level_callback=on_lvl)
+        except TypeError:
+            ok = tts.synthesize_and_play(text)
+        m("tts_done", success=bool(ok))
 
     shortcuts = ShortcutManager(config)
     shortcuts.register("primary", config.get_setting("primary_shortcut"), on_primary)
@@ -113,6 +182,12 @@ def run(config: ConfigManager | None = None) -> None:
         sys.exit(1)
 
     log.info("Orateur ready. Shortcuts active.")
+    if config.get_setting("desktop_notifications", True):
+        desktop_notify("Orateur started", "Speech shortcuts are active.", urgency="low")
+
+    quickshell_proc = [None]
+    if config.get_setting("quickshell_autostart", False):
+        quickshell_proc[0] = quickshell_spawn.start_quickshell()
 
     shutdown_requested = [False]
 
@@ -131,6 +206,9 @@ def run(config: ConfigManager | None = None) -> None:
         pass
     finally:
         log.info("Shutting down...")
+        if config.get_setting("desktop_notifications", True):
+            desktop_notify("Orateur stopped", "Speech shortcuts are inactive.", urgency="low")
+        quickshell_spawn.stop_quickshell(quickshell_proc[0])
         shortcuts.stop()
         # Bypass Python interpreter shutdown to avoid C++ destructor crashes
         # (pywhispercpp/ggml and PyTorch can crash when daemon threads are

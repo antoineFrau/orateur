@@ -27,6 +27,7 @@ class AudioCapture:
         self.lock = threading.Lock()
         self.stream = None
         self.record_thread = None
+        self._level_callback = None
 
         self._init_device()
 
@@ -53,12 +54,14 @@ class AudioCapture:
         except Exception:
             pass
 
-    def start_recording(self) -> bool:
+    def start_recording(self, level_callback=None) -> bool:
+        """Start recording. level_callback(chunk_rms: float) is called per chunk if provided."""
         if self.is_recording:
             return True
         try:
             with self.lock:
                 self.audio_data = []
+                self._level_callback = level_callback
                 self.is_recording = True
             self.record_thread = threading.Thread(target=self._record_audio, daemon=True)
             self.record_thread.start()
@@ -103,10 +106,19 @@ class AudioCapture:
             def callback(indata, frames, time_info, status):
                 if status:
                     log.warning("Audio status: %s", status)
+                cb = None
+                chunk = None
                 with self.lock:
                     if self.is_recording:
                         chunk = indata[:, 0].copy()
                         self.audio_data.append(chunk)
+                        cb = self._level_callback
+                if cb is not None and chunk is not None and len(chunk) > 0:
+                    rms = float(np.sqrt(np.mean(chunk ** 2)))
+                    try:
+                        cb(rms)
+                    except Exception as e:
+                        log.debug("level_callback error: %s", e)
 
             self.stream = sd.InputStream(
                 samplerate=self.sample_rate,

@@ -262,18 +262,54 @@ def cmd_shortcuts_list(args):
     return 0
 
 
+def cmd_ui(args):
+    """Run UI daemon for Quickshell (FIFO commands, JSON events on stdout)."""
+    from .ui_daemon import _run_ui_daemon
+
+    _run_ui_daemon(events_only=getattr(args, "events_only", False))
+    return 0
+
+
+def cmd_ui_send(args):
+    """Send a JSON command to the UI daemon (reads from stdin or first arg)."""
+    from .paths import CMD_FIFO, CACHE_DIR
+    import sys as _sys
+    data = getattr(args, "json_data", None) or ""
+    if not data:
+        data = _sys.stdin.read().strip()
+    if not data:
+        log.error("No JSON data (pass as arg or stdin)")
+        return 1
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if not CMD_FIFO.exists():
+        log.error("UI daemon not running (FIFO not found). Run 'orateur ui' first.")
+        return 1
+    try:
+        with open(CMD_FIFO, "w", encoding="utf-8") as f:
+            f.write(data)
+            if not data.endswith("\n"):
+                f.write("\n")
+    except OSError as e:
+        log.error("Failed to write to FIFO: %s", e)
+        return 1
+    return 0
+
+
 def cmd_setup(args):
     """Install GPU-accelerated pywhispercpp (detects CUDA, builds from source or uses PyPI)."""
     from .install_stt import install_pywhispercpp, _build_pywhispercpp_cuda_from_source
+    from .install_quickshell import install_quickshell
 
+    force = getattr(args, "force", False)
     if getattr(args, "build_from_source", False):
-        ok = _build_pywhispercpp_cuda_from_source()
+        ok = _build_pywhispercpp_cuda_from_source(force=force)
         return 0 if ok else 1
 
     backend = getattr(args, "backend", "auto")
     if backend == "auto":
         backend = None
-    ok = install_pywhispercpp(backend=backend)
+    ok = install_pywhispercpp(backend=backend, force=force)
+    install_quickshell()
     return 0 if ok else 1
 
 
@@ -286,6 +322,15 @@ def main():
     sp.add_argument("text", nargs="?", help="Text to speak")
     sub.add_parser("transcribe", help="Record and transcribe")
     sub.add_parser("sts", help="Speech-to-Speech")
+    ui_p = sub.add_parser("ui", help="UI daemon for Quickshell (JSON-RPC over FIFO/stdout)")
+    ui_p.add_argument(
+        "--events-only",
+        action="store_true",
+        help="FIFO relay only (no STT/TTS/LLM). For Quickshell when orateur run holds models.",
+    )
+    ui_p.add_argument("--send", dest="ui_send", action="store_true", help=argparse.SUPPRESS)
+    ui_send_p = sub.add_parser("ui-send", help="Send command to UI daemon (for Quickshell)")
+    ui_send_p.add_argument("json_data", nargs="?", help="JSON command (or read from stdin)")
 
     cfg = sub.add_parser("config", help="Config")
     cfg_sub = cfg.add_subparsers(dest="config_action")
@@ -319,6 +364,11 @@ def main():
         action="store_true",
         help="Force build from source with CUDA (for Blackwell/new GPUs when 'no GPU found')",
     )
+    setup_p.add_argument(
+        "--force",
+        action="store_true",
+        help="Reinstall pywhispercpp even if already installed",
+    )
 
     args = parser.parse_args()
 
@@ -330,6 +380,12 @@ def main():
         return cmd_transcribe(args)
     if args.command == "sts":
         return cmd_sts(args)
+    if args.command == "ui":
+        if getattr(args, "ui_send", False):
+            return cmd_ui_send(args)
+        return cmd_ui(args)
+    if args.command == "ui-send":
+        return cmd_ui_send(args)
     if args.command == "config":
         if args.config_action == "init":
             return cmd_config_init(args)
