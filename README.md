@@ -95,6 +95,8 @@ Restart **`orateur`** after upgrading so the JSONL file is recreated; restart **
 
 The panel shows recording/TTS preview with waveform and duration estimate.
 
+**Multiple monitors (Hyprland):** The bar uses a single layer surface on the **focused** Hyprland output (`import Quickshell.Hyprland`). When focus moves to another monitor, the panel follows. Your Quickshell package must include Hyprland integration (typical on Arch/AUR). On a single screen, or if Hyprland cannot match outputs, the first Quickshell screen is used.
+
 **FIFO / `orateur ui` (optional):** To drive recording from **`orateur ui-send`** instead of shortcuts, run **`orateur ui`** or **`orateur ui --events-only`** in a terminal; it uses **`~/.cache/orateur/cmd.fifo`**. That path is separate from **`ui_events.jsonl`**.
 
 **With `orateur run` (e.g. systemd):** **`quickshell_ui_mirror`** (default **`true`**) controls writing **`ui_events.jsonl`**. Set it to **`false`** to disable the bar updates.
