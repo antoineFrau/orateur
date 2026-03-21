@@ -29,7 +29,13 @@ export PYTHONPATH="${SRC_PARENT}:${PYTHONPATH}"
 
 # Find system Python (for setup when venv doesn't exist)
 get_system_python() {
-    local system_path="/usr/bin:/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin"
+    # Homebrew first when present (Apple Silicon: /opt/homebrew; Linuxbrew: ~/.linuxbrew) so
+    # `python3` is not shadowed only by older stubs. Then standard distro paths (not ~/.local shims).
+    local hb=""
+    [ -d "/opt/homebrew/bin" ] && hb="${hb:+$hb:}/opt/homebrew/bin"
+    [ -n "${HOME:-}" ] && [ -d "$HOME/.linuxbrew/bin" ] && hb="${hb:+$hb:}$HOME/.linuxbrew/bin"
+    [ -d "/home/linuxbrew/.linuxbrew/bin" ] && hb="${hb:+$hb:}/home/linuxbrew/.linuxbrew/bin"
+    local system_path="${hb:+$hb:}/usr/bin:/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin"
     local py
     py="$(PATH="$system_path" command -v python3 2>/dev/null)" && [ -x "$py" ] && { echo "$py"; return 0; }
     py="$(PATH="$system_path" command -v python 2>/dev/null)" && [ -x "$py" ] && { echo "$py"; return 0; }
