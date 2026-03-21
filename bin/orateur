@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # orateur launcher — requires Python 3.10+
-# Uses fixed venv (~/.local/share/orateur/venv) for GPU-accelerated pywhispercpp.
-# In development (project has .venv), uses project venv. Sets LD_LIBRARY_PATH for CUDA/ROCm.
+# Python: project .venv first (matches uv), else ~/.local/share/orateur/venv, else system.
+# Sets LD_LIBRARY_PATH for CUDA/ROCm.
 
 SCRIPT_DIR="$(cd "$(dirname $(readlink -f "$0"))" && pwd)"
 PACKAGE_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -44,13 +44,14 @@ get_system_python() {
 
 CLI_PYTHON="$(get_system_python)"
 
-# Use fixed venv so run uses same venv as setup (CUDA build).
-# Project .venv from uv sync has CPU wheel; setup installs CUDA into fixed venv.
+# Prefer project .venv when present (same interpreter as `uv run` / `uv sync`) so STT packages
+# installed by setup land in the venv we actually run. Otherwise ~/.local/share/orateur/venv
+# (GPU/CUDA story for installs without a dev tree).
 VENV_PYTHON="${XDG_DATA_HOME:-$HOME/.local/share}/orateur/venv/bin/python"
-if [ -f "$VENV_PYTHON" ]; then
-    PYTHON_CMD="$VENV_PYTHON"
-elif [ -f "$PACKAGE_ROOT/.venv/bin/python" ]; then
+if [ -f "$PACKAGE_ROOT/.venv/bin/python" ]; then
     PYTHON_CMD="$PACKAGE_ROOT/.venv/bin/python"
+elif [ -f "$VENV_PYTHON" ]; then
+    PYTHON_CMD="$VENV_PYTHON"
 else
     PYTHON_CMD="${CLI_PYTHON:-}"
 fi

@@ -296,19 +296,44 @@ def cmd_ui_send(args):
 
 
 def cmd_setup(args):
-    """Install GPU-accelerated pywhispercpp (detects CUDA, builds from source or uses PyPI)."""
-    from .install_stt import install_pywhispercpp, _build_pywhispercpp_cuda_from_source
+    """Install GPU-accelerated pywhispercpp (CUDA, Metal, or PyPI CPU)."""
+    from .install_stt import (
+        install_pywhispercpp,
+        _build_pywhispercpp_cuda_from_source,
+        _build_pywhispercpp_metal_from_source,
+        _is_apple_silicon,
+        _is_linux_x86_64,
+        download_whisper_model,
+    )
     from .install_quickshell import install_quickshell
 
     force = getattr(args, "force", False)
     if getattr(args, "build_from_source", False):
-        ok = _build_pywhispercpp_cuda_from_source(force=force)
-        return 0 if ok else 1
+        if _is_apple_silicon():
+            ok = _build_pywhispercpp_metal_from_source(force=force)
+        elif _is_linux_x86_64():
+            ok = _build_pywhispercpp_cuda_from_source(force=force)
+        else:
+            log.error(
+                "--build-from-source is supported on Linux x86_64 (CUDA) or macOS Apple Silicon (Metal)"
+            )
+            return 1
+        if not ok:
+            return 1
+        config = ConfigManager()
+        if not download_whisper_model(config.get_setting("stt_model", "base")):
+            log.warning("Whisper model download failed; first run will try again (needs network)")
+        install_quickshell()
+        return 0
 
     backend = getattr(args, "backend", "auto")
     if backend == "auto":
         backend = None
     ok = install_pywhispercpp(backend=backend, force=force)
+    if ok:
+        config = ConfigManager()
+        if not download_whisper_model(config.get_setting("stt_model", "base")):
+            log.warning("Whisper model download failed; first run will try again (needs network)")
     install_quickshell()
     return 0 if ok else 1
 
@@ -355,14 +380,14 @@ def main():
     setup_p = sub.add_parser("setup", help="Install GPU-accelerated pywhispercpp (optional)")
     setup_p.add_argument(
         "--backend",
-        choices=["auto", "nvidia", "cpu"],
+        choices=["auto", "nvidia", "metal", "cpu"],
         default="auto",
-        help="Backend: auto (detect CUDA), nvidia (force CUDA build), cpu (PyPI only)",
+        help="auto: CUDA (Linux+GPU) or Metal (Apple Silicon); nvidia/metal/cpu: force that backend",
     )
     setup_p.add_argument(
         "--build-from-source",
         action="store_true",
-        help="Force build from source with CUDA (for Blackwell/new GPUs when 'no GPU found')",
+        help="Force editable build: CUDA on Linux x86_64, Metal on Apple Silicon",
     )
     setup_p.add_argument(
         "--force",

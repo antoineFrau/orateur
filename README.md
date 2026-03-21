@@ -33,9 +33,9 @@ cd orateur
 uv sync
 ```
 
-## GPU acceleration (NVIDIA CUDA)
+## GPU acceleration (NVIDIA CUDA or Apple Metal)
 
-The default `pywhispercpp` wheel is CPU-only. Run setup to install a CUDA build for your GPU:
+The default `pywhispercpp` wheel from PyPI is CPU-only. Run setup to build from source with a GPU backend where supported:
 
 ```bash
 # Installed users
@@ -45,21 +45,28 @@ orateur setup
 uv run orateur setup
 ```
 
-Setup detects CUDA (via `nvcc` or `nvidia-smi`) and either builds pywhispercpp from source with GPU support (Linux x86_64) or installs the CPU wheel from PyPI.
+- **Linux x86_64 + CUDA** (detected via `nvcc` or `nvidia-smi`): builds with CUDA.
+- **macOS Apple Silicon (arm64)**: builds with Metal (Apple GPU).
+- **Otherwise**: installs the CPU wheel from PyPI.
 
-Options:
+CUDA is not available on macOS; Metal is not used on Linux. Options:
 
 ```bash
-orateur setup --backend auto   # default: detect CUDA
-orateur setup --backend nvidia # force CUDA build (fails if no CUDA)
+orateur setup --backend auto   # default: CUDA on Linux+GPU, Metal on Apple Silicon, else CPU wheel
+orateur setup --backend nvidia # force CUDA build (Linux only; fails if no CUDA)
+orateur setup --backend metal  # force Metal build (Apple Silicon only)
 orateur setup --backend cpu    # PyPI CPU only
-orateur setup --build-from-source  # force build from source (e.g. CUDA 13+ / Blackwell GPUs)
+orateur setup --build-from-source  # force editable build: CUDA (Linux) or Metal (Apple Silicon)
 orateur setup --force          # reinstall even if already installed
 ```
 
 Setup skips installation when pywhispercpp is already installed with the correct backend. Use `--force` to reinstall.
 
-On non-Linux x86_64 or when CUDA is not detected, setup uses PyPI (CPU). GPU build may take several minutes.
+GPU builds can take several minutes (Xcode Command Line Tools are required on macOS).
+
+`setup` passes `pip install --break-system-packages` only when installing into the active venv (needed for **uv**-managed Python environments that enforce PEP 668).
+
+The **`bin/orateur`** launcher uses the **project `.venv`** when it exists (same as `uv run`), otherwise `~/.local/share/orateur/venv`. Run **setup** and **run** with the same venv (or reinstall after changing workflows).
 
 ## Usage
 

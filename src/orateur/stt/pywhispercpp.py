@@ -12,8 +12,18 @@ from .base import STTBackend
 log = logging.getLogger(__name__)
 
 
+def whisper_models_dir() -> Path:
+    """Where pywhispercpp stores ggml weights (uses platformdirs; not ~/.local on macOS)."""
+    try:
+        from pywhispercpp.constants import MODELS_DIR
+
+        return Path(MODELS_DIR)
+    except ImportError:
+        return Path.home() / ".local" / "share" / "pywhispercpp" / "models"
+
+
 class PyWhisperCppBackend(STTBackend):
-    """Whisper via pywhispercpp (local, CPU/CUDA/Vulkan)."""
+    """Whisper via pywhispercpp (local CPU, or GPU via CUDA / Metal / Vulkan per build)."""
 
     def __init__(self, config):
         self.config = config
@@ -26,25 +36,19 @@ class PyWhisperCppBackend(STTBackend):
         self._current_model = config.get_setting("stt_model", "base")
         threads = config.get_setting("stt_threads", 4)
 
-        models_dir = Path.home() / ".local" / "share" / "pywhispercpp" / "models"
-        model_file = models_dir / f"ggml-{self._current_model}.bin"
-        if not model_file.exists() and not self._current_model.endswith(".en"):
-            model_file = models_dir / f"ggml-{self._current_model}.en.bin"
-        if not model_file.exists():
-            log.error("Model file not found: %s", model_file)
-            log.info("Download with: pywhispercpp-download %s", self._current_model)
-            return False
-
         try:
             try:
                 from pywhispercpp.model import Model
             except ImportError:
                 from pywhispercpp import Model
+            from pywhispercpp.constants import MODELS_DIR
 
             # redirect_whispercpp_logs_to=sys.stderr to see GPU allocation logs (e.g. "CUDA0 total size")
             redirect_logs = sys.stderr if config.get_setting("stt_whisper_verbose", False) else None
+            # Model() downloads missing ggml files into MODELS_DIR (platformdirs; e.g. ~/Library/... on macOS).
             self._model = Model(
                 model=self._current_model,
+                models_dir=str(MODELS_DIR),
                 n_threads=threads,
                 redirect_whispercpp_logs_to=redirect_logs,
             )
@@ -56,6 +60,10 @@ class PyWhisperCppBackend(STTBackend):
             return False
         except Exception as e:
             log.warning("pywhispercpp init failed: %s", e)
+            log.info(
+                "Ensure the model is available under %s (run: orateur setup)",
+                whisper_models_dir(),
+            )
             import traceback
             traceback.print_exc()
             return False
@@ -98,7 +106,7 @@ class PyWhisperCppBackend(STTBackend):
         return self.ready
 
     def get_available_models(self) -> list[str]:
-        models_dir = Path.home() / ".local" / "share" / "pywhispercpp" / "models"
+        models_dir = whisper_models_dir()
         supported = ["tiny", "base", "small", "medium", "large"]
         available = []
         for name in supported:
