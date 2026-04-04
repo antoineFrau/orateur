@@ -335,6 +335,20 @@ body.app--settings {
   color: #cac4d0;
 }
 
+.settings__label--checkbox {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.settings__label--checkbox input {
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
 .settings__input {
   background: #2b2930;
   border: 1px solid #48464f;

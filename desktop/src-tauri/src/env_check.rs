@@ -15,6 +15,8 @@ const DEFAULT_PIP_SPEC: &str = "orateur==0.1.3";
 
 const CHECK_TIMEOUT: Duration = Duration::from_secs(25);
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(600);
+/// GPU/source `orateur setup` can take many minutes.
+pub(crate) const SETUP_TIMEOUT: Duration = Duration::from_secs(1200);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -125,7 +127,7 @@ fn output_string_lossy(o: &std::process::Output) -> (String, String) {
     )
 }
 
-fn run_cmd_timeout(
+pub(crate) fn run_cmd_timeout(
     mut cmd: Command,
     timeout: Duration,
     label: &str,
@@ -253,9 +255,40 @@ sys.exit(0)
     run_cmd_timeout(cmd, CHECK_TIMEOUT, "import orateur")
 }
 
+/// Prepends typical user install locations so GUI apps find `~/.local/bin/orateur`.
+pub fn extended_path_for_orateur_home(home: &std::path::Path) -> String {
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    let mut parts: Vec<std::path::PathBuf> = vec![home.join(".local").join("bin")];
+    #[cfg(target_os = "macos")]
+    {
+        parts.push("/opt/homebrew/bin".into());
+        parts.push("/usr/local/bin".into());
+    }
+    let prefix = parts
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join(sep);
+    match std::env::var("PATH") {
+        Ok(existing) if !existing.is_empty() => format!("{prefix}{sep}{existing}"),
+        _ => prefix,
+    }
+}
+
 fn orateur_cli_version_on_path() -> Option<String> {
     let mut cmd = Command::new("orateur");
     cmd.arg("--version");
+    let out = run_cmd_timeout(cmd, CHECK_TIMEOUT, "orateur --version").ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+fn orateur_cli_version_with_path(home: &std::path::Path) -> Option<String> {
+    let mut cmd = Command::new("orateur");
+    cmd.arg("--version");
+    cmd.env("PATH", extended_path_for_orateur_home(home));
     let out = run_cmd_timeout(cmd, CHECK_TIMEOUT, "orateur --version").ok()?;
     if !out.status.success() {
         return None;
@@ -278,10 +311,59 @@ fn orateur_module_version(py_args: &[String]) -> bool {
     out.status.success()
 }
 
+/// Command with `PATH` set for `orateur` or `python -m orateur.cli`, ready for subcommands like `run` / `setup`.
+pub fn orateur_cli_command(app: &AppHandle) -> Option<Command> {
+    let home = app.path().home_dir().ok()?;
+    let path_env = extended_path_for_orateur_home(&home);
+
+    if orateur_cli_version_with_path(&home).is_some() {
+        let mut c = Command::new("orateur");
+        c.env("PATH", &path_env);
+        return Some(c);
+    }
+
+    let (_, py_args) = resolve_python_invocation()?;
+    let mut probe = Command::new(&py_args[0]);
+    for a in py_args.iter().skip(1) {
+        probe.arg(a);
+    }
+    probe.env("PATH", &path_env);
+    probe.arg("-c");
+    probe.arg(
+        r#"import sys
+if sys.version_info < (3, 10):
+    sys.exit(2)
+try:
+    import orateur
+except ImportError:
+    sys.exit(1)
+sys.exit(0)
+"#,
+    );
+    let out = run_cmd_timeout(probe, CHECK_TIMEOUT, "import orateur").ok()?;
+    if !out.status.success() {
+        return None;
+    }
+
+    let mut c = Command::new(&py_args[0]);
+    for a in py_args.iter().skip(1) {
+        c.arg(a);
+    }
+    c.arg("-m");
+    c.arg("orateur.cli");
+    c.env("PATH", &path_env);
+    Some(c)
+}
+
 #[tauri::command]
-pub fn check_orateur_environment(_app: AppHandle) -> Result<OrateurEnvCheck, String> {
+pub fn check_orateur_environment(app: AppHandle) -> Result<OrateurEnvCheck, String> {
     let mut detail = String::new();
-    let cli_ver = orateur_cli_version_on_path();
+    let cli_ver = app
+        .path()
+        .home_dir()
+        .ok()
+        .and_then(|h| orateur_cli_version_with_path(&h))
+        .or_else(orateur_cli_version_on_path);
     if let Some(v) = &cli_ver {
         detail.push_str(&format!("orateur on PATH reports: {v}\n"));
         return Ok(OrateurEnvCheck {

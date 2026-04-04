@@ -1,6 +1,6 @@
 # Controlling Orateur from the desktop shell
 
-The Tauri app mirrors **`ui_events.jsonl`** only (same as Quickshell). It does **not** send recording commands to `orateur run`. The Rust side uses the same **`XDG_CACHE_HOME`** / **`~/.cache/orateur`** rules as Python, resolves **`~`** in a custom path from Settings, and re-tails after log rotation (same path, new inode) or after **Apply path & restart tail** (even if the path string is unchanged).
+The Tauri app mirrors **`ui_events.jsonl`** (same as Quickshell). By default it also **spawns `orateur run`** as a child process (and runs **`orateur setup`** first if the venv exists but **`pywhispercpp`** is not importable). It does **not** send recording commands to that process over IPC; global shortcuts in **`orateur run`** still drive STT/TTS. Disable auto-start under **tray → Settings** if you use **systemd** or another **`orateur run`** and want a single daemon. The Rust side uses the same **`XDG_CACHE_HOME`** / **`~/.cache/orateur`** rules as Python, resolves **`~`** in a custom path from Settings, and re-tails after log rotation (same path, new inode) or after **Apply path & restart tail** (even if the path string is unchanged).
 
 ## How `orateur run` is controlled today
 

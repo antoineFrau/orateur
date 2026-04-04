@@ -10,19 +10,19 @@ A small **status overlay** that follows **`ui_events.jsonl`** with the same even
 
 ## Python package (first launch)
 
-The desktop app **tails `ui_events.jsonl` only**; it does not bundle the Python engine. On open, it checks for the **`orateur`** CLI on `PATH` (or an importable `orateur` via the detected interpreter).
+The desktop app **tails `ui_events.jsonl`** and, by default, **starts `orateur run` in the background** (after **`orateur setup`** if the STT stack in `~/.local/share/orateur/venv` is not ready). It does not bundle the Python engine. On open, it checks for the **`orateur`** CLI (including **`~/.local/bin`** even when the GUI has a minimal `PATH`) or an importable `orateur` via the detected interpreter.
 
 - **Default install spec:** [`src-tauri/resources/orateur-pip-spec.txt`](./src-tauri/resources/orateur-pip-spec.txt) (pinned to `orateur==0.1.3`, matching the repo root `pyproject.toml`). Used to resolve the version for the installer and, on Windows, for `pip install --user`.
 - **Unix (macOS / Linux):** Before each `vite` / Tauri build, [`scripts/copy-to-desktop-resources.mjs`](../scripts/copy-to-desktop-resources.mjs) copies [`scripts/install.sh`](../scripts/install.sh) and [`bin/orateur`](../bin/orateur) into `src-tauri/resources/`. The in-app installer runs **`bash install.sh`**, which creates **`~/.local/share/orateur/venv`**, installs the wheel (bundled or from GitHub Releases), optionally fetches **`quickshell-orateur.tar.gz`**, and installs **`~/.local/bin/orateur`**. This matches the [main README](../README.md) “GitHub Releases” flow.
 - **Windows:** “Install” still runs **`pip install --user <spec>`** until a Windows-native installer exists.
 - **Offline / air-gapped builds:** Build a wheel at the repo root, copy it to `src-tauri/resources/orateur-bundle.whl`, and list it under `bundle.resources` in [`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json). When present, the Unix installer passes that path to **`install.sh`** as **`ORATEUR_WHEEL`**. The wheel file is gitignored in `src-tauri/resources/.gitignore`.
-- **After install:** You still need **`orateur setup`** (models / GPU) and **`orateur run`** with **`ui_events_mirror`** for live events—same as a manual install. See [CONTROL.md](./CONTROL.md).
+- **After install:** Keep **`ui_events_mirror`** enabled for live events (default). The app runs **`orateur setup`** when the bundled venv exists but **`pywhispercpp`** is not importable, then **`orateur run`**. Logs: **`~/.cache/orateur/desktop-daemon.log`**. Turn auto-start off under **tray → Settings** (writes `auto-start-daemon` in the app config dir). If you already run **`orateur run`** elsewhere (e.g. systemd or a terminal), disable auto-start or you will have two daemons.
 
 **Manual QA (installer):** (1) No Python → expect “Install Python 3.10+”. (2) Python 3.10+ but no `orateur` on `PATH` → install runs **`install.sh`** (Unix) or pip (Windows). (3) `orateur` already on `PATH` → no gate. (4) After success → gate closes; **`orateur setup`** / **`orateur run`** still apply.
 
 ## Development
 
-1. **Run the Orateur daemon** so the JSONL file is written (from the repo root):
+1. **Orateur daemon:** By default the desktop app spawns **`orateur run`** on launch. Either let it do that, or disable **Start `orateur run` when this app launches** in Settings and run the daemon yourself from the repo root:
 
    ```bash
    uv sync
@@ -41,7 +41,7 @@ The desktop app **tails `ui_events.jsonl` only**; it does not bundle the Python 
 The **overlay** window is borderless and transparent: drag it by the bar, use **×** to hide it to the tray, or use the **tray icon** (menu bar on macOS, system tray on Linux/Windows):
 
 - **Show status bar** — brings the overlay back
-- **Settings** — path to `ui_events.jsonl` and “Apply path & restart tail”
+- **Settings** — path to `ui_events.jsonl`, “Apply path & restart tail”, and auto-start **`orateur run`**
 - **Quit** — exit the app
 
 Closing either window hides it (the app keeps running until **Quit**). The backend still tails `ui_events.jsonl` from the end of the file on connect (like `tail -n0 -F`).

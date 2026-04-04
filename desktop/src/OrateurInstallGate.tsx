@@ -94,10 +94,11 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
     setInstallLog(null);
     try {
       const r = await invoke<OrateurInstallResult>("install_orateur_from_desktop");
-      if (r.ok) {
+        if (r.ok) {
         const c = await invoke<OrateurEnvCheck>("check_orateur_environment");
         setCheck(c);
         if (c.orateurInstalled) {
+          void invoke("trigger_orateur_daemon").catch(() => {});
           setPhase("passed");
         } else {
           setInstallLog(
@@ -173,8 +174,9 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
               </button>
             </div>
             <p className="installGate__footer">
-              After install, run <code>orateur setup</code> and <code>orateur run</code> (with{" "}
-              <code>ui_events_mirror</code>) so the overlay receives events. See the project README.
+              After install, the desktop app can run <code>orateur setup</code> (if STT is not ready) and{" "}
+              <code>orateur run</code> for you. Ensure <code>ui_events_mirror</code> is enabled in config
+              (default). You can turn this off under tray → Settings.
             </p>
           </>
         )}

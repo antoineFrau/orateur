@@ -6,6 +6,8 @@ mod tray;
 
 mod env_check;
 
+mod daemon;
+
 mod overlay_workspace;
 
 #[cfg(target_os = "macos")]
@@ -15,6 +17,7 @@ use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -382,6 +385,16 @@ pub fn run() {
 
             app.manage(paths_arc);
 
+            let daemon_holder: Arc<Mutex<Option<Child>>> = Arc::new(Mutex::new(None));
+            app.manage(daemon::DaemonHolder(daemon_holder.clone()));
+            {
+                let h = app.handle().clone();
+                let dh = daemon_holder.clone();
+                std::thread::spawn(move || {
+                    daemon::spawn_orateur_daemon_if_needed(&h, &dh);
+                });
+            }
+
             #[cfg(desktop)]
             tray::create(app.handle())?;
 
@@ -413,11 +426,19 @@ pub fn run() {
             env_check::check_orateur_environment,
             env_check::get_orateur_install_preview,
             env_check::install_orateur_from_desktop,
+            daemon::get_auto_start_daemon,
+            daemon::set_auto_start_daemon,
+            daemon::trigger_orateur_daemon,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
-    app.run(|_app_handle, event| {
+    app.run(|app_handle, event| {
+        if let RunEvent::Exit = event {
+            if let Some(holder) = app_handle.try_state::<daemon::DaemonHolder>() {
+                daemon::kill_daemon(&holder.0);
+            }
+        }
         #[cfg(desktop)]
         if let RunEvent::ExitRequested { api, code, .. } = event {
             if code.is_none() {

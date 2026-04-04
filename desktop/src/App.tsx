@@ -68,6 +68,7 @@ function OverlayResizeEdges() {
 function SettingsPanel() {
   const [eventsPathLabel, setEventsPathLabel] = useState("");
   const [pathDraft, setPathDraft] = useState("");
+  const [autoStartDaemon, setAutoStartDaemon] = useState(true);
 
   useEffect(() => {
     void invoke<string>("get_resolved_events_path")
@@ -82,6 +83,9 @@ function SettingsPanel() {
         setPathDraft("");
       }
     })();
+    void invoke<boolean>("get_auto_start_daemon")
+      .then(setAutoStartDaemon)
+      .catch(() => {});
   }, []);
 
   const savePath = useCallback(async () => {
@@ -119,6 +123,19 @@ function SettingsPanel() {
       <p className="settings__path">
         Active: <code>{eventsPathLabel || "…"}</code>
       </p>
+      <label className="settings__label settings__label--checkbox">
+        <input
+          type="checkbox"
+          checked={autoStartDaemon}
+          onChange={(e) => {
+            const v = e.target.checked;
+            setAutoStartDaemon(v);
+            void invoke("set_auto_start_daemon", { enabled: v }).catch(() => {});
+          }}
+        />
+        Start <code>orateur run</code> when this app launches (runs <code>orateur setup</code> first if
+        the STT stack is missing; applies on next launch)
+      </label>
       <p className="settings__hint settings__hint--footer">
         Close this window when done. Reopen from the tray icon → Settings.
       </p>

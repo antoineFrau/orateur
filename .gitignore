@@ -2,6 +2,9 @@ __pycache__/
 .venv/
 dist/
 *.egg-info/
+# CI release workflow copies these to the repo root for packaging (not committed)
+/install.sh
+/quickshell-orateur.tar.gz
 .env
 .env.local
 .env.development.local
