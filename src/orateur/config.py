@@ -37,6 +37,7 @@ class ConfigManager:
             "tts_backend": "pocket_tts",
             "tts_voice": "alba",
             "tts_volume": 1.0,
+            # Use "none", "off", or "disabled" to skip Ollama (speech-to-speech unavailable).
             "llm_backend": "ollama",
             "llm_model": "llama3.2",
             "llm_system_prompt": "You are a helpful assistant. Respond concisely.",

@@ -80,14 +80,15 @@ def _run_ui_daemon(*, events_only: bool = False) -> None:
         from .audio_capture import AudioCapture
         from .audio_utils import audio_to_levels
         from .config import ConfigManager
-        from .llm import get_llm_backend
+        from .llm import get_llm_backend, is_llm_disabled
         from .stt import get_stt_backend
         from .tts import get_tts_backend
 
         config = ConfigManager()
         stt = get_stt_backend(config.get_setting("stt_backend", "pywhispercpp"), config)
         tts = get_tts_backend(config.get_setting("tts_backend", "pocket_tts"), config)
-        llm = get_llm_backend(config.get_setting("llm_backend", "ollama"), config)
+        llm_name = config.get_setting("llm_backend", "ollama")
+        llm = None if is_llm_disabled(llm_name) else get_llm_backend(llm_name, config)
 
         if not stt or not stt.is_ready():
             _emit_error("STT not ready")

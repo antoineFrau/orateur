@@ -1,6 +1,6 @@
 # Controlling Orateur from the desktop shell
 
-The Tauri app mirrors **`ui_events.jsonl`** only (same as Quickshell). It does **not** send recording commands to `orateur run`.
+The Tauri app mirrors **`ui_events.jsonl`** only (same as Quickshell). It does **not** send recording commands to `orateur run`. The Rust side uses the same **`XDG_CACHE_HOME`** / **`~/.cache/orateur`** rules as Python, resolves **`~`** in a custom path from Settings, and re-tails after log rotation (same path, new inode) or after **Apply path & restart tail** (even if the path string is unchanged).
 
 ## How `orateur run` is controlled today
 

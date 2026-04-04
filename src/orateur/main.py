@@ -17,7 +17,7 @@ from . import quickshell_spawn
 log = logging.getLogger(__name__)
 from .stt import get_stt_backend
 from .tts import get_tts_backend
-from .llm import get_llm_backend
+from .llm import get_llm_backend, is_llm_disabled
 from .shortcuts import ShortcutManager
 from .text_injector import TextInjector
 from .config import ConfigManager
@@ -59,10 +59,15 @@ def run(config: ConfigManager | None = None) -> None:
     if not tts or not tts.is_ready():
         log.warning("TTS not ready - speak/sts will be limited")
 
-    log.info("Loading LLM...")
-    llm = get_llm_backend(config.get_setting("llm_backend", "ollama"), config)
-    if not llm or not llm.is_ready():
-        log.warning("LLM not ready - sts will be limited")
+    llm_name = config.get_setting("llm_backend", "ollama")
+    if is_llm_disabled(llm_name):
+        log.info("LLM disabled (llm_backend=%s)", llm_name)
+        llm = None
+    else:
+        log.info("Loading LLM...")
+        llm = get_llm_backend(llm_name, config)
+        if not llm or not llm.is_ready():
+            log.warning("LLM not ready - sts will be limited")
 
     audio = AudioCapture(config=config)
     injector = TextInjector(config)

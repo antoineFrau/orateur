@@ -11,35 +11,67 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 #[cfg(desktop)]
 use tauri::RunEvent;
 
 /// Matches Python `paths.py`: `XDG_CACHE_HOME/orateur`, default `~/.cache/orateur`.
-fn orateur_cache_dir() -> PathBuf {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".into());
-    let base = std::env::var("XDG_CACHE_HOME").unwrap_or_else(|_| format!("{}/.cache", home));
-    PathBuf::from(base).join("orateur")
+fn orateur_cache_dir(home: &Path) -> PathBuf {
+    let base = std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join(".cache"));
+    base.join("orateur")
 }
 
-fn default_events_path() -> PathBuf {
-    orateur_cache_dir().join("ui_events.jsonl")
+fn default_events_path_for(home: &Path) -> PathBuf {
+    orateur_cache_dir(home).join("ui_events.jsonl")
+}
+
+fn resolve_home(app: &AppHandle) -> PathBuf {
+    match app.path().home_dir() {
+        Ok(h) => h,
+        Err(_) => std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(".")),
+    }
+}
+
+fn expand_user_path(path: &Path, home: &Path) -> PathBuf {
+    if let Some(s) = path.to_str() {
+        if s == "~" {
+            return home.to_path_buf();
+        }
+        if let Some(rest) = s.strip_prefix("~/") {
+            return home.join(rest);
+        }
+    }
+    path.to_path_buf()
 }
 
 fn resolve_events_path(app: &AppHandle) -> PathBuf {
+    let home = resolve_home(app);
     if let Ok(dir) = app.path().app_config_dir() {
         let cfg = dir.join("events-path.txt");
         if let Ok(s) = std::fs::read_to_string(&cfg) {
             let t = s.trim();
             if !t.is_empty() {
-                return PathBuf::from(t);
+                return expand_user_path(Path::new(t), &home);
             }
         }
     }
-    default_events_path()
+    default_events_path_for(&home)
+}
+
+#[derive(Clone)]
+struct PathsState {
+    path: PathBuf,
+    /// Incremented on every "Apply path & restart tail" so the tail resets even when the path string is unchanged.
+    generation: u64,
 }
 
 #[derive(Clone, Serialize)]
@@ -48,8 +80,11 @@ struct EventsPathInfo {
 }
 
 #[tauri::command]
-fn get_default_events_path() -> String {
-    default_events_path().to_string_lossy().into_owned()
+fn get_default_events_path(app: AppHandle) -> String {
+    let home = resolve_home(&app);
+    default_events_path_for(&home)
+        .to_string_lossy()
+        .into_owned()
 }
 
 #[tauri::command]
@@ -92,7 +127,7 @@ pub struct RestartPayload {
 #[tauri::command]
 fn restart_tail_listener(
     app: AppHandle,
-    paths: State<'_, Arc<Mutex<PathBuf>>>,
+    paths: State<'_, Arc<Mutex<PathsState>>>,
     payload: RestartPayload,
 ) -> Result<(), String> {
     if let Some(ref p) = payload.path {
@@ -100,12 +135,14 @@ fn restart_tail_listener(
     } else {
         write_events_path_config(app.clone(), None)?;
     }
-    let path = resolve_events_path(&app);
-    *paths.lock().map_err(|e| e.to_string())? = path.clone();
+    let resolved = resolve_events_path(&app);
+    let mut guard = paths.lock().map_err(|e| e.to_string())?;
+    guard.path = resolved;
+    guard.generation = guard.generation.saturating_add(1);
     let _ = app.emit(
         "orateur:events-path",
         EventsPathInfo {
-            path: path.to_string_lossy().into_owned(),
+            path: guard.path.to_string_lossy().into_owned(),
         },
     );
     Ok(())
@@ -114,6 +151,8 @@ fn restart_tail_listener(
 struct TailState {
     read_offset: u64,
     pending: String,
+    #[cfg(unix)]
+    last_id: Option<(u64, u64)>,
 }
 
 impl TailState {
@@ -123,10 +162,19 @@ impl TailState {
         } else {
             0
         };
-        Self {
+        let mut s = Self {
             read_offset,
             pending: String::new(),
+            #[cfg(unix)]
+            last_id: None,
+        };
+        #[cfg(unix)]
+        {
+            if let Ok(meta) = std::fs::metadata(path) {
+                s.last_id = Some((meta.dev(), meta.ino()));
+            }
         }
+        s
     }
 }
 
@@ -136,16 +184,18 @@ fn ensure_parent(path: &Path) {
     }
 }
 
-fn tail_loop(paths_shared: Arc<Mutex<PathBuf>>, app: AppHandle, stop: Arc<AtomicBool>) {
+fn tail_loop(paths_shared: Arc<Mutex<PathsState>>, app: AppHandle, stop: Arc<AtomicBool>) {
     let mut active_path = PathBuf::new();
+    let mut active_generation: u64 = 0;
     let mut state: Option<TailState> = None;
 
     while !stop.load(Ordering::SeqCst) {
-        let path = paths_shared.lock().unwrap().clone();
+        let snapshot = paths_shared.lock().unwrap().clone();
 
-        if path != active_path {
-            active_path = path.clone();
-            state = Some(TailState::new(true, &path));
+        if snapshot.path != active_path || snapshot.generation != active_generation {
+            active_path = snapshot.path.clone();
+            active_generation = snapshot.generation;
+            state = Some(TailState::new(true, &snapshot.path));
         }
 
         let st = match state.as_mut() {
@@ -156,17 +206,33 @@ fn tail_loop(paths_shared: Arc<Mutex<PathBuf>>, app: AppHandle, stop: Arc<Atomic
             }
         };
 
-        if !path.exists() {
-            ensure_parent(&path);
+        if !snapshot.path.exists() {
+            ensure_parent(&snapshot.path);
             let _ = OpenOptions::new()
                 .create(true)
                 .write(true)
-                .open(&path);
+                .open(&snapshot.path);
             std::thread::sleep(Duration::from_millis(200));
             continue;
         }
 
-        let mut file = match std::fs::File::open(&path) {
+        #[cfg(unix)]
+        {
+            if let Ok(meta) = std::fs::metadata(&snapshot.path) {
+                let id = (meta.dev(), meta.ino());
+                match st.last_id {
+                    Some(prev) if prev != id => {
+                        *st = TailState::new(true, &snapshot.path);
+                    }
+                    None => {
+                        st.last_id = Some(id);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        let mut file = match std::fs::File::open(&snapshot.path) {
             Ok(f) => f,
             Err(_) => {
                 std::thread::sleep(Duration::from_millis(200));
@@ -197,7 +263,9 @@ fn tail_loop(paths_shared: Arc<Mutex<PathBuf>>, app: AppHandle, stop: Arc<Atomic
             continue;
         }
 
-        let new_len = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(len);
+        let new_len = std::fs::metadata(&snapshot.path)
+            .map(|m| m.len())
+            .unwrap_or(len);
         st.read_offset = new_len;
 
         let chunk = String::from_utf8_lossy(&buf);
@@ -234,7 +302,10 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             let initial = resolve_events_path(&handle);
-            let paths_arc = Arc::new(Mutex::new(initial.clone()));
+            let paths_arc = Arc::new(Mutex::new(PathsState {
+                path: initial.clone(),
+                generation: 0,
+            }));
             let _ = handle.emit(
                 "orateur:events-path",
                 EventsPathInfo {

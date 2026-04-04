@@ -16,7 +16,7 @@ A small **status overlay** that follows **`ui_events.jsonl`** with the same even
    uv run orateur run
    ```
 
-   Ensure **`ui_events_mirror`** is **`true`** in **`~/.config/orateur/config.json`** (default) so events are appended to **`~/.cache/orateur/ui_events.jsonl`**.
+   Ensure **`ui_events_mirror`** is **`true`** in **`~/.config/orateur/config.json`** (default) so events are appended to **`~/.cache/orateur/ui_events.jsonl`** (or **`$XDG_CACHE_HOME/orateur/ui_events.jsonl`** when `XDG_CACHE_HOME` is set). The Tauri app resolves the same default path using your user home (via Tauri’s `home_dir`, not only the `HOME` env var), so it stays aligned with **`orateur run`** when launched from the Dock or a terminal.
 
 2. **Start the Tauri app** (in this directory):
 
