@@ -4,6 +4,8 @@
 #[cfg(desktop)]
 mod tray;
 
+mod env_check;
+
 mod overlay_workspace;
 
 #[cfg(target_os = "macos")]
@@ -20,9 +22,9 @@ use std::time::Duration;
 use std::os::unix::fs::MetadataExt;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 #[cfg(desktop)]
 use tauri::RunEvent;
+use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
 /// Matches Python `paths.py`: `XDG_CACHE_HOME/orateur`, default `~/.cache/orateur`.
 fn orateur_cache_dir(home: &Path) -> PathBuf {
@@ -104,7 +106,9 @@ fn read_events_path_config(app: AppHandle) -> Result<Option<String>, String> {
     if !cfg.exists() {
         return Ok(None);
     }
-    std::fs::read_to_string(&cfg).map(Some).map_err(|e| e.to_string())
+    std::fs::read_to_string(&cfg)
+        .map(Some)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -406,6 +410,9 @@ pub fn run() {
             write_events_path_config,
             restart_tail_listener,
             hide_overlay,
+            env_check::check_orateur_environment,
+            env_check::get_orateur_install_preview,
+            env_check::install_orateur_from_desktop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

@@ -4,11 +4,13 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Waveform } from "./components/Waveform";
 import { debug } from "./debug";
+import { OrateurInstallGate } from "./OrateurInstallGate";
 import {
   initialOrateurState,
   overlayVisualState,
   reduceOrateurEvent,
   selectDisplayLevels,
+  showPulse,
   showRecording,
   showTtsChrome,
   type OrateurVisualState,
@@ -16,14 +18,9 @@ import {
 } from "./orateurState";
 import "./App.css";
 
-/** Rounded clip + portal root for frameless transparent overlay (see App.css). */
+/** Rounded clip for frameless transparent overlay (see App.css). Modal portal: `#modal-portal-root` in index.html. */
 function OverlayAppShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overlay-shell">
-      {children}
-      <div id="modal-portal-root" className="overlay-shell__portal" aria-hidden />
-    </div>
-  );
+  return <div className="overlay-shell">{children}</div>;
 }
 
 function formatClockSeconds(sec: number): string {
@@ -316,7 +313,12 @@ function OverlayPanel() {
       >
         <div className="app__barInner" data-tauri-drag-region>
           <div className="app__slot app__slot--left" data-tauri-drag-region>
-            {showRecording(visualState) && <span className="app__pulse" aria-hidden />}
+            {showPulse(visualState) && (
+              <span
+                className={`app__pulse ${visualState.recording ? "" : "app__pulse--stt"}`}
+                aria-hidden
+              />
+            )}
             {showTtsChrome(visualState) && (
               <span
                 className={`app__ttsDot ${
@@ -377,7 +379,11 @@ export default function App() {
   }
 
   if (mode === "settings") {
-    return <SettingsPanel />;
+    return (
+      <OrateurInstallGate>
+        <SettingsPanel />
+      </OrateurInstallGate>
+    );
   }
 
   if (mode === "browser") {
@@ -395,8 +401,10 @@ export default function App() {
   }
 
   return (
-    <OverlayAppShell>
-      <OverlayPanel />
-    </OverlayAppShell>
+    <OrateurInstallGate>
+      <OverlayAppShell>
+        <OverlayPanel />
+      </OverlayAppShell>
+    </OrateurInstallGate>
   );
 }

@@ -4,28 +4,44 @@
 # Python: project .venv first (matches uv), else ~/.local/share/orateur/venv, else system.
 # Sets LD_LIBRARY_PATH for CUDA/ROCm.
 
-SCRIPT_DIR="$(cd "$(dirname $(readlink -f "$0"))" && pwd)"
+_SCRIPT="${BASH_SOURCE[0]:-$0}"
+if command -v readlink >/dev/null 2>&1 && _resolved="$(readlink -f "$_SCRIPT" 2>/dev/null)"; then
+    _SCRIPT="$_resolved"
+fi
+SCRIPT_DIR="$(cd "$(dirname "$_SCRIPT")" && pwd)"
 PACKAGE_ROOT="$(dirname "$SCRIPT_DIR")"
+
+USER_DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/orateur"
+STANDALONE_MODE=0
 
 # Determine the library directory
 # Development: src/orateur/cli.py exists under PACKAGE_ROOT
 # Installed: lib/orateur/cli.py under PACKAGE_ROOT (e.g., /usr/lib/orateur/)
+# Standalone: pip install in ~/.local/share/orateur/venv (launcher e.g. ~/.local/bin/orateur)
 if [ -f "$PACKAGE_ROOT/src/orateur/cli.py" ]; then
     LIB_DIR="$PACKAGE_ROOT/src/orateur"
     SRC_PARENT="$PACKAGE_ROOT/src"
+    export ORATEUR_ROOT="$PACKAGE_ROOT"
 elif [ -f "$PACKAGE_ROOT/lib/orateur/cli.py" ]; then
     LIB_DIR="$PACKAGE_ROOT/lib/orateur"
     SRC_PARENT="$PACKAGE_ROOT/lib"
+    export ORATEUR_ROOT="$PACKAGE_ROOT"
+elif [ -x "$USER_DATA_DIR/venv/bin/python" ]; then
+    STANDALONE_MODE=1
+    export ORATEUR_ROOT="$USER_DATA_DIR"
+    unset PYTHONPATH
 else
     echo "Error: Cannot find orateur library files." >&2
     echo "Searched in:" >&2
     echo "  $PACKAGE_ROOT/src/orateur/cli.py" >&2
     echo "  $PACKAGE_ROOT/lib/orateur/cli.py" >&2
+    echo "  $USER_DATA_DIR/venv (standalone install)" >&2
     exit 1
 fi
 
-export ORATEUR_ROOT="$PACKAGE_ROOT"
-export PYTHONPATH="${SRC_PARENT}:${PYTHONPATH}"
+if [ "$STANDALONE_MODE" -eq 0 ]; then
+    export PYTHONPATH="${SRC_PARENT}:${PYTHONPATH:-}"
+fi
 
 # Find system Python (for setup when venv doesn't exist)
 get_system_python() {
@@ -47,8 +63,10 @@ CLI_PYTHON="$(get_system_python)"
 # Prefer project .venv when present (same interpreter as `uv run` / `uv sync`) so STT packages
 # installed by setup land in the venv we actually run. Otherwise ~/.local/share/orateur/venv
 # (GPU/CUDA story for installs without a dev tree).
-VENV_PYTHON="${XDG_DATA_HOME:-$HOME/.local/share}/orateur/venv/bin/python"
-if [ -f "$PACKAGE_ROOT/.venv/bin/python" ]; then
+VENV_PYTHON="${USER_DATA_DIR}/venv/bin/python"
+if [ "$STANDALONE_MODE" -eq 1 ]; then
+    PYTHON_CMD="$VENV_PYTHON"
+elif [ -f "$PACKAGE_ROOT/.venv/bin/python" ]; then
     PYTHON_CMD="$PACKAGE_ROOT/.venv/bin/python"
 elif [ -f "$VENV_PYTHON" ]; then
     PYTHON_CMD="$VENV_PYTHON"

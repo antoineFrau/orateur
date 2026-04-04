@@ -18,6 +18,7 @@ import sys
 import threading
 from pathlib import Path
 
+from . import __version__
 from .config import ConfigManager
 
 log = logging.getLogger(__name__)
@@ -348,6 +349,12 @@ def cmd_setup(args):
 
 def main():
     parser = argparse.ArgumentParser(prog="orateur", description="Minimal local speech-to-text and speech-to-speech")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Print version and exit",
+    )
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("run", help="Run main loop (systemd)")

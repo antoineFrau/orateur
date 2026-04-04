@@ -1,0 +1,6 @@
+# Optional offline install artifact (copy before `tauri build` if you bundle a wheel).
+orateur-bundle.whl
+
+# Copied from repo root by `npm run copy-install-resources` before `tauri build`.
+install.sh
+orateur-launcher

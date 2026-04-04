@@ -170,6 +170,11 @@ export function selectDisplayLevels(s: OrateurVisualState): number[] {
 }
 
 export const showRecording = (s: OrateurVisualState) => s.recording;
+
+/** Red pulse while recording; keep pulsing through STT (processing / transcribing) until idle. */
+export const showPulse = (s: OrateurVisualState) =>
+  s.recording || (s.uiState === "stt" && !s.stsPipelineActive);
+
 export const showTtsChrome = (s: OrateurVisualState) => s.ttsPhase !== "idle";
 
 const FAKE_WAVEFORM_LEVELS: number[] = Array.from({ length: 48 }, (_, i) =>

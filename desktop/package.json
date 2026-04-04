@@ -4,8 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run copy-install-resources && vite",
     "build": "tsc && vite build",
+    "copy-install-resources": "node ../scripts/copy-to-desktop-resources.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

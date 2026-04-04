@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "npm run build && npm run copy-install-resources",
     "frontendDist": "../dist"
   },
   "app": {
@@ -47,6 +47,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": [
+      "resources/orateur-pip-spec.txt",
+      "resources/install.sh",
+      "resources/orateur-launcher"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
