@@ -23,6 +23,7 @@ export function Waveform({ levels }: WaveformProps) {
   return (
     <div
       className="waveform"
+      data-tauri-drag-region
       style={
         {
           gap: `${BAR_SPACING}px`,

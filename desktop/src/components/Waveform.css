@@ -10,4 +10,6 @@
   align-self: center;
   border-radius: 1px;
   background: #9ca3af;
+  /* Let drags hit .waveform (data-tauri-drag-region); bars are visual-only */
+  pointer-events: none;
 }

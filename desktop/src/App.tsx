@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Waveform } from "./components/Waveform";
 import {
   initialOrateurState,
+  overlayVisualState,
   reduceOrateurEvent,
   selectDisplayLevels,
   showRecording,
@@ -14,10 +15,56 @@ import {
 } from "./orateurState";
 import "./App.css";
 
+/** Rounded clip + portal root for frameless transparent overlay (see App.css). */
+function OverlayAppShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overlay-shell">
+      {children}
+      <div id="modal-portal-root" className="overlay-shell__portal" aria-hidden />
+    </div>
+  );
+}
+
 function formatClockSeconds(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s < 10 ? "0" : ""}${s}`;
+}
+
+/** Frameless window: native edges + full-window drag conflict; use explicit resize strips. */
+const OVERLAY_RESIZE_DIRS = [
+  "NorthWest",
+  "North",
+  "NorthEast",
+  "West",
+  "East",
+  "SouthWest",
+  "South",
+  "SouthEast",
+] as const;
+
+type OverlayResizeDir = (typeof OVERLAY_RESIZE_DIRS)[number];
+
+function OverlayResizeEdges() {
+  const onMouseDown = useCallback((e: React.MouseEvent, dir: OverlayResizeDir) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isTauri()) return;
+    void getCurrentWindow().startResizeDragging(dir);
+  }, []);
+
+  return (
+    <>
+      {OVERLAY_RESIZE_DIRS.map((dir) => (
+        <div
+          key={dir}
+          className={`overlay__resize overlay__resize--${dir}`}
+          onMouseDown={(e) => onMouseDown(e, dir)}
+          aria-hidden
+        />
+      ))}
+    </>
+  );
 }
 
 function SettingsPanel() {
@@ -106,11 +153,13 @@ function OverlayPanel() {
     return () => window.clearTimeout(t);
   }, [state.showAfterDone]);
 
+  const visualState = useMemo(() => overlayVisualState(state), [state]);
+
   useEffect(() => {
-    if (!state.recording) return;
+    if (!visualState.recording) return;
     const id = window.setInterval(() => setTick((x) => x + 1), 1000);
     return () => window.clearInterval(id);
-  }, [state.recording]);
+  }, [visualState.recording]);
 
   useEffect(() => {
     if (state.ttsPhase !== "play" || state.ttsPlayStartedAt <= 0) return;
@@ -118,11 +167,11 @@ function OverlayPanel() {
     return () => window.clearInterval(id);
   }, [state.ttsPhase, state.ttsPlayStartedAt]);
 
-  const displayLevels = useMemo(() => selectDisplayLevels(state), [state]);
+  const displayLevels = useMemo(() => selectDisplayLevels(visualState), [visualState]);
 
   const recordingElapsed =
-    state.recording && state.recordingStartTime > 0
-      ? Math.floor(Date.now() / 1000 - state.recordingStartTime)
+    visualState.recording && visualState.recordingStartTime > 0
+      ? Math.floor(Date.now() / 1000 - visualState.recordingStartTime)
       : 0;
   void tick;
 
@@ -135,7 +184,54 @@ function OverlayPanel() {
   }, [state, ttsTick]);
 
   const isActive =
-    state.uiState !== "idle" || state.showAfterDone || state.recording;
+    visualState.uiState !== "idle" || state.showAfterDone || visualState.recording;
+
+  const wasActiveRef = useRef(false);
+  const hideTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (hideTimerRef.current !== null) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  useEffect(() => {
+    // Dev: keep the borderless overlay window visible without recording/TTS events.
+    if (import.meta.env.DEV) {
+      return;
+    }
+    if (isActive) {
+      wasActiveRef.current = true;
+      if (hideTimerRef.current !== null) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+      return;
+    }
+    if (!wasActiveRef.current) {
+      return;
+    }
+    wasActiveRef.current = false;
+    hideTimerRef.current = window.setTimeout(() => {
+      hideTimerRef.current = null;
+      void (async () => {
+        if (await isTauri()) {
+          await invoke("hide_overlay").catch(() => {});
+        }
+      })();
+    }, 800);
+    return () => {
+      if (hideTimerRef.current !== null) {
+        window.clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+    };
+  }, [isActive]);
 
   const hideToTray = useCallback(async () => {
     if (await isTauri()) {
@@ -149,51 +245,47 @@ function OverlayPanel() {
         className={`overlay__bar ${isActive ? "overlay__bar--active" : ""}`}
         data-tauri-drag-region
       >
-        <div className="overlay__chrome">
-          <button
-            type="button"
-            className="overlay__hide"
-            title="Hide to tray"
-            onClick={hideToTray}
-          >
-            ×
-          </button>
-        </div>
-        <div className="app__barInner">
-          <div className="app__slot app__slot--left">
-            {showRecording(state) && <span className="app__pulse" aria-hidden />}
-            {showTtsChrome(state) && (
+        <div className="app__barInner" data-tauri-drag-region>
+          <div className="app__slot app__slot--left" data-tauri-drag-region>
+            {showRecording(visualState) && <span className="app__pulse" aria-hidden />}
+            {showTtsChrome(visualState) && (
               <span
                 className={`app__ttsDot ${
-                  state.ttsPhase === "synthesize" ? "app__ttsDot--syn" : "app__ttsDot--play"
+                  visualState.ttsPhase === "synthesize" ? "app__ttsDot--syn" : "app__ttsDot--play"
                 }`}
                 aria-hidden
               />
             )}
           </div>
 
-          <div className="app__waveWrap">
+          <div className="app__waveWrap" data-tauri-drag-region>
             <Waveform levels={displayLevels} />
           </div>
 
-          <div className="app__slot app__slot--right">
-            {(showRecording(state) || showTtsChrome(state)) && (
+          <div className="app__slot app__slot--right" data-tauri-drag-region>
+            {(showRecording(visualState) || showTtsChrome(visualState)) && (
               <span className="app__timer">
-                {showRecording(state)
+                {showRecording(visualState)
                   ? formatClockSeconds(recordingElapsed)
-                  : state.ttsPhase === "synthesize"
+                  : visualState.ttsPhase === "synthesize"
                     ? "--:--"
                     : formatClockSeconds(ttsRemainingSec)}
               </span>
             )}
           </div>
         </div>
-        <p className="app__status">{state.statusText}</p>
-        {state.transcribedText && state.uiState === "idle" && (
-          <p className="app__transcript">{state.transcribedText}</p>
-        )}
       </div>
-      <p className="overlay__trayHint">Tray icon: Settings · Show status bar</p>
+      <OverlayResizeEdges />
+      <div className="overlay__chrome">
+        <button
+          type="button"
+          className="overlay__hide"
+          title="Hide to tray"
+          onClick={hideToTray}
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
@@ -207,11 +299,14 @@ export default function App() {
     void (async () => {
       if (await isTauri()) {
         const label = await getCurrentWindow().label;
-        document.body.classList.add(
-          label === "settings" ? "app--settings" : "app--overlay"
-        );
+        const modeClass =
+          label === "settings" ? "app--settings" : "app--overlay";
+        // Apply mode on both `html` and `body` so `:root` / layout rules stay consistent.
+        document.documentElement.classList.add(modeClass);
+        document.body.classList.add(modeClass);
         setMode(label === "settings" ? "settings" : "overlay");
       } else {
+        document.documentElement.classList.add("app--browser");
         document.body.classList.add("app--browser");
         setMode("browser");
       }
@@ -233,10 +328,16 @@ export default function App() {
           Browser preview: overlay layout below. Run <code>npm run tauri dev</code>{" "}
           for the real borderless window + tray.
         </p>
-        <OverlayPanel />
+        <OverlayAppShell>
+          <OverlayPanel />
+        </OverlayAppShell>
       </div>
     );
   }
 
-  return <OverlayPanel />;
+  return (
+    <OverlayAppShell>
+      <OverlayPanel />
+    </OverlayAppShell>
+  );
 }

@@ -4,22 +4,65 @@
   background: #1c1b1f;
 }
 
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
 body {
   margin: 0;
 }
 
-/* Borderless overlay window (see tauri.conf.json overlay) */
+/* Borderless transparent overlay (see tauri.conf.json); drag = data-tauri-drag-region, resize = strips */
+html.app--overlay {
+  background: transparent !important;
+}
+
 html.app--overlay,
 body.app--overlay {
+  margin: 0;
   background: transparent !important;
+  overflow: hidden;
+  min-height: 100%;
+  height: 100%;
 }
 
 #root {
   min-height: 0;
 }
 
+html.app--overlay #root,
 body.app--overlay #root {
-  background: transparent;
+  min-height: 100%;
+  height: 100%;
+  background: transparent !important;
+}
+
+/* Outer shell: clips chrome to rounded rect so the title bar cannot square off the corners */
+.overlay-shell {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Portal target for modals/dialogs — use createPortal(..., document.getElementById('modal-portal-root')) */
+.overlay-shell__portal {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.overlay-shell__portal > * {
+  pointer-events: auto;
 }
 
 /* Normal settings window */
@@ -40,30 +83,130 @@ body.app--settings {
   color: #9ca3af;
 }
 
-/* —— Floating overlay —— */
+/* —— Overlay (frameless: drag anywhere; resize on edge strips; strips/button = no-drag) —— */
 .overlay {
-  padding: 6px 8px 4px;
+  position: relative;
+  margin: 0;
+  padding: 0;
   box-sizing: border-box;
+  min-height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .overlay__bar {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
   background: rgba(43, 41, 48, 0.92);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 6px 10px 8px;
+  border: none;
+  padding: 0;
+  margin: 0;
   opacity: 0.78;
   transition: opacity 0.2s;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  cursor: grab;
+}
+
+.overlay__bar:active {
+  cursor: grabbing;
 }
 
 .overlay__bar--active {
   opacity: 0.98;
 }
 
+/* Above resize strips (z-index 50); must be a sibling after the bar, not inside it */
 .overlay__chrome {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 60;
   display: flex;
   justify-content: flex-end;
-  margin: -2px -4px 4px 0;
+  margin: 0;
+  padding: 0;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Invisible hit targets above the bar; startResizeDragging (Tauri) — no native title bar */
+.overlay__resize {
+  position: absolute;
+  z-index: 50;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.overlay__resize--North {
+  top: 0;
+  left: 0;
+  right: 40px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.overlay__resize--NorthEast {
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: nesw-resize;
+}
+
+.overlay__resize--East {
+  right: 0;
+  top: 28px;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.overlay__resize--SouthEast {
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+.overlay__resize--South {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.overlay__resize--SouthWest {
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.overlay__resize--West {
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.overlay__resize--NorthWest {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
 }
 
 .overlay__hide {
@@ -77,18 +220,13 @@ body.app--settings {
   background: rgba(255, 255, 255, 0.08);
   color: #cac4d0;
   cursor: pointer;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .overlay__hide:hover {
   background: rgba(239, 68, 68, 0.35);
   color: #fff;
-}
-
-.overlay__trayHint {
-  margin: 4px 0 0;
-  font-size: 10px;
-  color: rgba(156, 163, 175, 0.75);
-  text-align: center;
 }
 
 /* —— Settings window —— */
@@ -173,14 +311,24 @@ body.app--settings {
 .app__barInner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: space-around;
   gap: 8px;
   min-height: 36px;
 }
 
+.overlay .app__barInner {
+  width: 100%;
+  box-sizing: border-box;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .app__waveWrap {
-  flex: 1;
   display: flex;
+  align-items: center;
   justify-content: center;
   min-width: 0;
 }
@@ -188,12 +336,28 @@ body.app--settings {
 .app__slot {
   flex: 0 0 44px;
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  gap: 4px;
 }
 
 .app__slot--right {
-  justify-content: flex-end;
+  justify-content: center;
+}
+
+.app__timer {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1;
+  color: #cac4d0;
+}
+
+/* Decorative / read-only; let drags hit the slot (data-tauri-drag-region) */
+.overlay .app__pulse,
+.overlay .app__ttsDot,
+.overlay .app__timer {
+  pointer-events: none;
 }
 
 .app__pulse {
@@ -229,25 +393,4 @@ body.app--settings {
   50% {
     opacity: 1;
   }
-}
-
-.app__timer {
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  color: #cac4d0;
-}
-
-.app__status {
-  margin: 8px 0 0;
-  font-size: 0.8rem;
-  color: #9ca3af;
-}
-
-.app__transcript {
-  margin: 6px 0 0;
-  font-size: 0.8rem;
-  color: #d1d5db;
-  line-height: 1.35;
-  max-height: 100px;
-  overflow: auto;
 }

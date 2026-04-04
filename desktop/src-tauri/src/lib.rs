@@ -4,6 +4,8 @@
 #[cfg(desktop)]
 mod tray;
 
+mod overlay_workspace;
+
 use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -184,6 +186,44 @@ fn ensure_parent(path: &Path) {
     }
 }
 
+/// Show the overlay when `orateur run` mirrors activity triggered by global shortcuts.
+fn maybe_show_overlay_for_activity(app: &AppHandle, v: &serde_json::Value) {
+    let Some(ev) = v.get("event").and_then(|e| e.as_str()) else {
+        return;
+    };
+    if !matches!(
+        ev,
+        "recording_started" | "tts_estimate" | "tts_playing" | "error"
+    ) {
+        return;
+    }
+    let app = app.clone();
+    let _ = app.run_on_main_thread({
+        let app = app.clone();
+        move || {
+            if let Some(w) = app.get_webview_window("overlay") {
+                overlay_workspace::overlay_show_on_active_workspace(&w);
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }
+    });
+}
+
+#[tauri::command]
+fn hide_overlay(app: AppHandle) -> Result<(), String> {
+    let app = app.clone();
+    let _ = app.run_on_main_thread({
+        let app = app.clone();
+        move || {
+            if let Some(w) = app.get_webview_window("overlay") {
+                let _ = w.hide();
+            }
+        }
+    });
+    Ok(())
+}
+
 fn tail_loop(paths_shared: Arc<Mutex<PathsState>>, app: AppHandle, stop: Arc<AtomicBool>) {
     let mut active_path = PathBuf::new();
     let mut active_generation: u64 = 0;
@@ -279,6 +319,7 @@ fn tail_loop(paths_shared: Arc<Mutex<PathsState>>, app: AppHandle, stop: Arc<Ato
                 continue;
             }
             if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+                maybe_show_overlay_for_activity(&app, &v);
                 let _ = app.emit("orateur:event", v);
             }
         }
@@ -324,6 +365,19 @@ pub fn run() {
             #[cfg(desktop)]
             tray::create(app.handle())?;
 
+            #[cfg(all(desktop, debug_assertions))]
+            {
+                let h = app.handle().clone();
+                let h2 = h.clone();
+                let _ = h.run_on_main_thread(move || {
+                    if let Some(w) = h2.get_webview_window("overlay") {
+                        overlay_workspace::overlay_show_on_active_workspace(&w);
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -332,6 +386,7 @@ pub fn run() {
             read_events_path_config,
             write_events_path_config,
             restart_tail_listener,
+            hide_overlay,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

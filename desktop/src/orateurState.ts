@@ -3,6 +3,9 @@
  * quickshell/orateur/OrateurWidget.qml `parseEvent`.
  */
 
+/** When true, overlay shows recording UI without `recording_started` / audio (for layout debugging). */
+export const DEBUG_FAKE_RECORDING = true;
+
 export type UiState = "idle" | "record" | "stt" | "tts" | "sts";
 
 export interface OrateurVisualState {
@@ -169,3 +172,28 @@ export function selectDisplayLevels(s: OrateurVisualState): number[] {
 
 export const showRecording = (s: OrateurVisualState) => s.recording;
 export const showTtsChrome = (s: OrateurVisualState) => s.ttsPhase !== "idle";
+
+const FAKE_WAVEFORM_LEVELS: number[] = Array.from({ length: 48 }, (_, i) =>
+  Math.min(1, 0.12 + 0.55 * (0.5 + 0.5 * Math.sin(i * 0.35)))
+);
+
+let fakeRecordingStartSec = 0;
+
+/** Visual state for the overlay bar; fake recording when `DEBUG_FAKE_RECORDING` and not really recording. */
+export function overlayVisualState(s: OrateurVisualState): OrateurVisualState {
+  if (!DEBUG_FAKE_RECORDING) return s;
+  if (s.recording) {
+    fakeRecordingStartSec = 0;
+    return s;
+  }
+  if (fakeRecordingStartSec <= 0) fakeRecordingStartSec = Date.now() / 1000;
+  return {
+    ...s,
+    recording: true,
+    uiState: "record",
+    recordKind: s.recordKind || "stt",
+    recordingStartTime: fakeRecordingStartSec,
+    waveformLevels:
+      s.waveformLevels.length > 0 ? s.waveformLevels : FAKE_WAVEFORM_LEVELS,
+  };
+}

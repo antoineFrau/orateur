@@ -4,6 +4,8 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
+use crate::overlay_workspace;
+
 pub fn create(app: &tauri::AppHandle) -> tauri::Result<()> {
     let show_i = MenuItem::with_id(app, "show", "Show status bar", true, None::<&str>)?;
     let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
@@ -20,6 +22,7 @@ pub fn create(app: &tauri::AppHandle) -> tauri::Result<()> {
         .on_menu_event(move |app, event| match event.id.as_ref() {
             "show" => {
                 if let Some(w) = app.get_webview_window("overlay") {
+                    overlay_workspace::overlay_show_on_active_workspace(&w);
                     let _ = w.show();
                     let _ = w.set_focus();
                 }
