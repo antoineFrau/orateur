@@ -353,6 +353,13 @@ pub fn run() {
         builder = builder.plugin(tauri_nspanel::init());
     }
 
+    builder = builder.plugin(tauri_plugin_process::init());
+
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
     let app = builder
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

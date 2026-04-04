@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build && npm run copy-install-resources",
+    "beforeBuildCommand": "node scripts/build-if-needed.mjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -46,6 +46,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "resources": [
       "resources/orateur-pip-spec.txt",
@@ -59,5 +60,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwRTc4MTE5RTREREIzRkUKUldUK3M5M2tHWUhuSUlxNDQwTFNZRE9DZ1gwdG04N3BCMWNtR0k3QXQ1L1pqZlp2bUxqYm1MN3IK",
+      "endpoints": [
+        "https://github.com/antoineFrau/orateur/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

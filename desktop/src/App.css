@@ -392,6 +392,27 @@ body.app--settings {
   word-break: break-all;
 }
 
+.settings__section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #3f3d45;
+}
+
+.settings__section .settings__hint {
+  margin-bottom: 8px;
+}
+
+.settings__update-msg {
+  margin: 10px 0 0;
+  font-size: 0.8rem;
+  color: #a8a29e;
+  line-height: 1.4;
+}
+
+.settings__update-msg--error {
+  color: #f87171;
+}
+
 /* —— Waveform row (shared) —— */
 .app__barInner {
   display: flex;

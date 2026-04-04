@@ -69,6 +69,10 @@ function SettingsPanel() {
   const [eventsPathLabel, setEventsPathLabel] = useState("");
   const [pathDraft, setPathDraft] = useState("");
   const [autoStartDaemon, setAutoStartDaemon] = useState(true);
+  const [updatePhase, setUpdatePhase] = useState<
+    "idle" | "checking" | "uptodate" | "downloading" | "error"
+  >("idle");
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void invoke<string>("get_resolved_events_path")
@@ -97,6 +101,36 @@ function SettingsPanel() {
       payload: { path: pathOpt },
     });
   }, [pathDraft]);
+
+  const checkAndInstallUpdates = useCallback(async () => {
+    if (!(await isTauri())) {
+      setUpdateMessage("Updates are only available in the desktop app.");
+      setUpdatePhase("error");
+      return;
+    }
+    setUpdatePhase("checking");
+    setUpdateMessage(null);
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const { relaunch } = await import("@tauri-apps/plugin-process");
+      const update = await check();
+      if (!update) {
+        setUpdatePhase("uptodate");
+        setUpdateMessage("You are on the latest version.");
+        return;
+      }
+      setUpdatePhase("downloading");
+      await update.downloadAndInstall((event) => {
+        if (event.event === "Finished") {
+          setUpdateMessage("Installed. Restarting…");
+        }
+      });
+      await relaunch();
+    } catch (e) {
+      setUpdatePhase("error");
+      setUpdateMessage(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
 
   return (
     <div className="settings">
@@ -136,6 +170,32 @@ function SettingsPanel() {
         Start <code>orateur run</code> when this app launches (runs <code>orateur setup</code> first if
         the STT stack is missing; applies on next launch)
       </label>
+      <div className="settings__section">
+        <p className="settings__hint">App updates (signed builds from GitHub Releases).</p>
+        <div className="settings__row">
+          <button
+            type="button"
+            className="settings__btn"
+            disabled={updatePhase === "checking" || updatePhase === "downloading"}
+            onClick={() => void checkAndInstallUpdates()}
+          >
+            {updatePhase === "checking"
+              ? "Checking…"
+              : updatePhase === "downloading"
+                ? "Downloading…"
+                : "Check for updates"}
+          </button>
+        </div>
+        {updateMessage ? (
+          <p
+            className={
+              updatePhase === "error" ? "settings__update-msg settings__update-msg--error" : "settings__update-msg"
+            }
+          >
+            {updateMessage}
+          </p>
+        ) : null}
+      </div>
       <p className="settings__hint settings__hint--footer">
         Close this window when done. Reopen from the tray icon → Settings.
       </p>
