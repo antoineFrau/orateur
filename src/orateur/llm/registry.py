@@ -12,9 +12,20 @@ _BACKENDS: dict[str, Type[LLMBackend]] = {
     "ollama": OllamaBackend,
 }
 
+_DISABLED_NAMES = frozenset({"none", "off", "disabled"})
+
+
+def is_llm_disabled(name: str) -> bool:
+    """True when config explicitly turns off the LLM (no Ollama connection)."""
+    if not isinstance(name, str):
+        return False
+    return name.strip().lower() in _DISABLED_NAMES
+
 
 def get_llm_backend(name: str, config) -> Optional[LLMBackend]:
     """Get and initialize an LLM backend by name."""
+    if is_llm_disabled(name):
+        return None
     if name == "mcp":
         log.warning("llm_backend 'mcp' is deprecated, using 'ollama' instead")
         name = "ollama"
@@ -28,8 +39,8 @@ def get_llm_backend(name: str, config) -> Optional[LLMBackend]:
 
 
 def list_llm_backends() -> list[str]:
-    """List registered LLM backend names."""
-    return list(_BACKENDS.keys())
+    """List registered LLM backend names (includes explicit disable sentinel)."""
+    return ["none"] + list(_BACKENDS.keys())
 
 
 def register_llm_backend(name: str, backend_cls: Type[LLMBackend]) -> None:

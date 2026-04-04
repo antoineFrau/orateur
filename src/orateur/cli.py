@@ -18,13 +18,14 @@ import sys
 import threading
 from pathlib import Path
 
+from . import __version__
 from .config import ConfigManager
 
 log = logging.getLogger(__name__)
 from .paths import CONFIG_DIR, CONFIG_FILE
 from .stt import get_stt_backend, list_stt_backends
 from .tts import get_tts_backend, list_tts_backends
-from .llm import get_llm_backend, list_llm_backends
+from .llm import get_llm_backend, is_llm_disabled, list_llm_backends
 from .audio_capture import AudioCapture
 from .sts_pipeline import run_sts
 from .text_injector import TextInjector
@@ -108,7 +109,11 @@ def cmd_sts(args):
     config = ConfigManager()
     stt = get_stt_backend(config.get_setting("stt_backend", "pywhispercpp"), config)
     tts = get_tts_backend(config.get_setting("tts_backend", "pocket_tts"), config)
-    llm = get_llm_backend(config.get_setting("llm_backend", "ollama"), config)
+    llm_name = config.get_setting("llm_backend", "ollama")
+    if is_llm_disabled(llm_name):
+        log.error("STS needs an LLM; set llm_backend to ollama (currently %s)", llm_name)
+        return 1
+    llm = get_llm_backend(llm_name, config)
     if not all([stt and stt.is_ready(), tts and tts.is_ready(), llm and llm.is_ready()]):
         log.error("STT, TTS, or LLM not ready")
         return 1
@@ -230,9 +235,13 @@ def cmd_model_list(args):
     if tts:
         print("TTS voices:", ", ".join(tts.get_available_voices()) if tts.get_available_voices() else "(none)")
     print("LLM backends:", ", ".join(list_llm_backends()))
-    llm = get_llm_backend(config.get_setting("llm_backend", "ollama"), config)
-    if llm:
-        print("LLM models:", ", ".join(llm.get_available_models()) if llm.get_available_models() else "(none)")
+    llm_name = config.get_setting("llm_backend", "ollama")
+    if is_llm_disabled(llm_name):
+        print(f"LLM models: (disabled — llm_backend={llm_name})")
+    else:
+        llm = get_llm_backend(llm_name, config)
+        if llm:
+            print("LLM models:", ", ".join(llm.get_available_models()) if llm.get_available_models() else "(none)")
     return 0
 
 
@@ -340,6 +349,12 @@ def cmd_setup(args):
 
 def main():
     parser = argparse.ArgumentParser(prog="orateur", description="Minimal local speech-to-text and speech-to-speech")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="Print version and exit",
+    )
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("run", help="Run main loop (systemd)")

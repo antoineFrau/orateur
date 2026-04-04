@@ -18,7 +18,30 @@ Minimal python local speech-to-text, text-to-speech and speech-to-speech assista
 
 ## Installation
 
-Use a system Python that satisfies **3.10+** (the venv created by `orateur setup` uses that interpreter).
+Use a system Python that satisfies **3.10+** (the venv used by `orateur setup` is created with that interpreter). You also need **`pip`** and a working **`venv`** (`python3 -m venv`). On Debian/Ubuntu, install **`python3-venv`** if `venv` is missing.
+
+### From GitHub Releases (no PyPI)
+
+Each [release](https://github.com/antoineFrau/orateur/releases) publishes **`install.sh`**, a **wheel**, an **sdist**, **`quickshell-orateur.tar.gz`** (panel assets), and the **`bin/orateur`** launcher. The installer creates **`~/.local/share/orateur/venv`**, installs Orateur with pip, unpacks Quickshell files under that data directory, and installs the launcher as **`~/.local/bin/orateur`** (override with **`ORATEUR_BIN_DIR`**).
+
+**One command** (replace the tag with the release you want):
+
+```bash
+curl -fsSL https://github.com/antoineFrau/orateur/releases/download/v0.1.0/install.sh | bash
+```
+
+The release’s **`install.sh`** embeds the version, so it needs no arguments. To run a copy of [`scripts/install.sh`](scripts/install.sh) from the repository instead, pass a version or set **`ORATEUR_VERSION`**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/antoineFrau/orateur/main/scripts/install.sh -o install.sh
+chmod +x install.sh
+./install.sh 0.1.0
+# or: ORATEUR_VERSION=0.1.0 ./install.sh
+```
+
+Ensure **`~/.local/bin`** is on your **`PATH`** (many distros add it by default). Then run **`orateur setup`** once (models, optional GPU STT, Quickshell panel, etc.), then commands such as **`orateur run`**.
+
+The desktop app (**`desktop/`**) uses the same script: on **macOS** and **Linux** it runs **`install.sh`** from the app bundle (with a bundled wheel when **`resources/orateur-bundle.whl`** is present). **Windows** still uses **`pip install --user`** until a native installer exists.
 
 ### From package manager (no uv required)
 
@@ -34,6 +57,18 @@ orateur setup
 cd orateur
 uv sync
 ```
+
+### Releasing (maintainers)
+
+1. Set **`version`** in **`pyproject.toml`** to the new release number.
+2. Commit and push, then tag and push the tag (the workflow runs on tag push):
+
+   ```bash
+   git tag v0.1.0   # must match pyproject version
+   git push origin v0.1.0
+   ```
+
+3. The [Release workflow](.github/workflows/release.yml) builds the wheel and sdist, packages **`quickshell/`** into **`quickshell-orateur.tar.gz`**, embeds the version into **`install.sh`**, and uploads the wheel, sdist, **`install.sh`**, **`quickshell-orateur.tar.gz`**, and **`bin/orateur`** to the GitHub Release for that tag.
 
 ## GPU acceleration (NVIDIA CUDA or Apple Metal)
 
@@ -108,11 +143,13 @@ Restart **`orateur`** after upgrading so the JSONL file is recreated; restart **
 
 The panel shows recording/TTS preview with waveform and duration estimate.
 
+**Tauri overlay (experimental):** a cross-platform window that reads the same JSONL file is in **`desktop/`**. See **`desktop/README.md`**.
+
 **Multiple monitors (Hyprland):** The bar uses a single layer surface on the **focused** Hyprland output (`import Quickshell.Hyprland`). When focus moves to another monitor, the panel follows. Your Quickshell package must include Hyprland integration (typical on Arch/AUR). On a single screen, or if Hyprland cannot match outputs, the first Quickshell screen is used.
 
 **FIFO / `orateur ui` (optional):** To drive recording from **`orateur ui-send`** instead of shortcuts, run **`orateur ui`** or **`orateur ui --events-only`** in a terminal; it uses **`~/.cache/orateur/cmd.fifo`**. That path is separate from **`ui_events.jsonl`**.
 
-**With `orateur run` (e.g. systemd):** **`quickshell_ui_mirror`** (default **`true`**) controls writing **`ui_events.jsonl`**. Set it to **`false`** to disable the bar updates.
+**With `orateur run` (e.g. systemd):** **`ui_events_mirror`** (default **`true`**) controls writing **`ui_events.jsonl`**. Set it to **`false`** to disable external UI updates (Quickshell panel, Tauri overlay, etc.).
 
 **Auto-start the panel:** set **`quickshell_autostart`** to **`true`** in **`config.json`**. Then **`orateur run`** spawns **`quickshell -c orateur`** after shortcuts are ready and stops it on exit. Leave **`false`** (default) if you launch Quickshell yourself or use another shell integration, to avoid two instances.
 
@@ -158,7 +195,7 @@ orateur systemd restart
 
 The unit is ordered after **PipeWire** and **graphical-session** so audio and your GUI session are up. Run **`orateur setup`** (or equivalent) so STT/TTS are ready, and keep **`~/.config/orateur/config.json`** in order.
 
-**Quickshell:** run **`quickshell -c orateur`** yourself, or set **`quickshell_autostart`** so **`orateur run`** starts it (see above). With **`quickshell_ui_mirror`** enabled (default), the service and the panel stay in sync when both run.
+**Quickshell:** run **`quickshell -c orateur`** yourself, or set **`quickshell_autostart`** so **`orateur run`** starts it (see above). With **`ui_events_mirror`** enabled (default), the service and any UI that tails **`ui_events.jsonl`** stay in sync when both run.
 
 **Development** (`uv`):
 
@@ -177,12 +214,14 @@ orateur config init
 orateur config show
 ```
 
-### Quickshell UI mirroring
+### UI events mirroring
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `quickshell_ui_mirror` | `true` | `orateur run` appends UI events to **`~/.cache/orateur/ui_events.jsonl`** for the Quickshell panel (`tail -F`). |
+| `ui_events_mirror` | `true` | `orateur run` appends UI events to **`~/.cache/orateur/ui_events.jsonl`** for any client (Quickshell `tail -F`, Tauri **`desktop/`**, scripts). |
 | `quickshell_autostart` | `false` | If **`true`**, `orateur run` runs **`quickshell -c orateur`** as a child process and stops it on shutdown. |
+
+The deprecated key **`quickshell_ui_mirror`** is still read once on load and migrated to **`ui_events_mirror`**, then removed from the in-memory config.
 
 ### MCP tools (Ollama)
 

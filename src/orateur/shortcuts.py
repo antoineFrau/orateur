@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 import threading
 import time
+import unicodedata
 from typing import Callable, Optional
 
 log = logging.getLogger(__name__)
@@ -83,9 +85,18 @@ _SPECIAL_PYNPUT = {
 }
 
 
+def _normalize_shortcut_token(p: str) -> str:
+    """Normalize one key name from config (typos, smart quotes, stray punctuation)."""
+    p = unicodedata.normalize("NFKC", p).strip().lower()
+    # Stray marks after words (e.g. "space¡" breaks pynput's <space> parse)
+    p = re.sub(r"[!¡?]+$", "", p)
+    return p.strip("'\"")
+
+
 def _shortcut_to_pynput(s: str) -> Optional[str]:
     s = s.lower().strip().replace("+", " ").replace("-", " ")
-    parts = [p for p in s.split() if p]
+    parts = [_normalize_shortcut_token(p) for p in s.split() if p]
+    parts = [p for p in parts if p]
     if not parts:
         return None
     chunks: list[str] = []
@@ -304,6 +315,10 @@ elif sys.platform in ("darwin", "win32"):
                 self._listener.start()
             except Exception as e:
                 log.error("Could not start global hotkeys: %s", e)
+                log.error(
+                    "Registered pynput combos (fix typos in config.json if needed): %s",
+                    list(self._hotkey_map.keys()),
+                )
                 self._listener = None
                 return False
             return True

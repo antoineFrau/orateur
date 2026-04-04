@@ -37,6 +37,7 @@ class ConfigManager:
             "tts_backend": "pocket_tts",
             "tts_voice": "alba",
             "tts_volume": 1.0,
+            # Use "none", "off", or "disabled" to skip Ollama (speech-to-speech unavailable).
             "llm_backend": "ollama",
             "llm_model": "llama3.2",
             "llm_system_prompt": "You are a helpful assistant. Respond concisely.",
@@ -45,8 +46,8 @@ class ConfigManager:
             "mcp_tools_url": None,
             "paste_mode": "ctrl_shift",
             "paste_keycode": 47,
-            # Append UI events to ~/.cache/orateur/ui_events.jsonl for Quickshell (tail -F).
-            "quickshell_ui_mirror": False,
+            # Append UI events to ~/.cache/orateur/ui_events.jsonl (Quickshell, Tauri desktop, tail, etc.).
+            "ui_events_mirror": True,
             # Spawn `quickshell -c orateur` when `orateur run` starts (e.g. systemd).
             "quickshell_autostart": False,
             # notify-send when `orateur run` is ready / on shutdown (set false for headless).
@@ -74,6 +75,12 @@ class ConfigManager:
                     loaded = json.load(f)
                 loaded.pop("$schema", None)
                 self.config.update(loaded)
+                # Migrate deprecated quickshell_ui_mirror -> ui_events_mirror
+                if "ui_events_mirror" in loaded:
+                    self.config["ui_events_mirror"] = bool(loaded["ui_events_mirror"])
+                elif "quickshell_ui_mirror" in loaded:
+                    self.config["ui_events_mirror"] = bool(loaded["quickshell_ui_mirror"])
+                self.config.pop("quickshell_ui_mirror", None)
         except Exception as e:
             log.warning("Could not load config: %s", e)
 

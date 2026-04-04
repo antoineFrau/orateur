@@ -1,0 +1,471 @@
+:root {
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  color: #e8e6ed;
+  background: #1c1b1f;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  margin: 0;
+}
+
+/* Borderless transparent overlay (see tauri.conf.json); drag = data-tauri-drag-region, resize = strips */
+html.app--overlay {
+  background: transparent !important;
+}
+
+html.app--overlay,
+body.app--overlay {
+  margin: 0;
+  background: transparent !important;
+  overflow: hidden;
+  min-height: 100%;
+  height: 100%;
+}
+
+#root {
+  min-height: 0;
+}
+
+html.app--overlay #root,
+body.app--overlay #root {
+  min-height: 100%;
+  height: 100%;
+  background: transparent !important;
+}
+
+/* Outer shell: clips chrome to rounded rect so the title bar cannot square off the corners */
+.overlay-shell {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* Normal settings window */
+body.app--settings {
+  background: #1c1b1f;
+}
+
+/* Browser dev preview */
+.browserDev {
+  padding: 12px 16px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.browserDev__note {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+/* —— Overlay (frameless: drag anywhere; resize on edge strips; strips/button = no-drag) —— */
+.overlay {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  min-height: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.overlay__bar {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 0;
+  background: rgba(43, 41, 48, 0.92);
+  border: none;
+  padding: 0;
+  margin: 0;
+  opacity: 0.78;
+  transition: opacity 0.2s;
+  cursor: grab;
+}
+
+.overlay__bar:active {
+  cursor: grabbing;
+}
+
+.overlay__bar--active {
+  opacity: 0.98;
+}
+
+/* Invisible hit targets above the bar; startResizeDragging (Tauri) — no native title bar */
+.overlay__resize {
+  position: absolute;
+  z-index: 50;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.overlay__resize--North {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.overlay__resize--NorthEast {
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 8px;
+  cursor: nesw-resize;
+}
+
+.overlay__resize--East {
+  right: 0;
+  top: 28px;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.overlay__resize--SouthEast {
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+.overlay__resize--South {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.overlay__resize--SouthWest {
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nesw-resize;
+}
+
+.overlay__resize--West {
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 6px;
+  cursor: ew-resize;
+}
+
+.overlay__resize--NorthWest {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nwse-resize;
+}
+
+/* First-run / pip install gate (portaled to modal root or body) */
+.installGate {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 16px;
+}
+
+.installGate__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.installGate__panel {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  width: 100%;
+  padding: 20px 22px 18px;
+  border-radius: 12px;
+  background: #2a2830;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.installGate__title {
+  margin: 0 0 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.installGate__text {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: #c8c4d0;
+}
+
+.installGate__detail,
+.installGate__log {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  color: #b0aab8;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.installGate__cmd {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.installGate__cmdLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.installGate__warn {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #fbbf24;
+}
+
+.installGate__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.installGate__btn {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: #e8e6ed;
+  cursor: pointer;
+}
+
+.installGate__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.installGate__btn--primary {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+}
+
+.installGate__btn--primary:hover:not(:disabled) {
+  background: #6366f1;
+}
+
+.installGate__footer {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #6b7280;
+}
+
+/* —— Settings window —— */
+.settings {
+  padding: 20px 22px 28px;
+  max-width: 560px;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.settings__title {
+  margin: 0 0 14px;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.settings__hint {
+  margin: 0 0 12px;
+  font-size: 0.85rem;
+  color: #cac4d0;
+  line-height: 1.45;
+}
+
+.settings__hint--footer {
+  margin-top: 18px;
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.settings__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #cac4d0;
+}
+
+.settings__input {
+  background: #2b2930;
+  border: 1px solid #48464f;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #e8e6ed;
+  font-size: 0.85rem;
+  font-family: ui-monospace, monospace;
+}
+
+.settings__row {
+  margin-top: 14px;
+}
+
+.settings__btn {
+  background: #3f3d45;
+  color: #e8e6ed;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.settings__btn:hover {
+  background: #4a4752;
+}
+
+.settings__btn--primary {
+  background: #4f46e5;
+}
+
+.settings__btn--primary:hover {
+  background: #6366f1;
+}
+
+.settings__path {
+  margin: 12px 0 0;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  word-break: break-all;
+}
+
+/* —— Waveform row (shared) —— */
+.app__barInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
+  min-height: 36px;
+}
+
+.overlay .app__barInner {
+  width: 100%;
+  box-sizing: border-box;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.app__waveWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.app__slot {
+  flex: 0 0 44px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.app__slot--right {
+  justify-content: center;
+}
+
+.app__timer {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1;
+  color: #cac4d0;
+}
+
+/* Decorative / read-only; let drags hit the slot (data-tauri-drag-region) */
+.overlay .app__pulse,
+.overlay .app__ttsDot,
+.overlay .app__timer {
+  pointer-events: none;
+}
+
+.app__pulse {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.app__pulse--stt {
+  background: #d1cbd6;
+}
+
+.app__ttsDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.app__ttsDot--syn {
+  background: #f59e0b;
+}
+
+.app__ttsDot--play {
+  background: #22c55e;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
