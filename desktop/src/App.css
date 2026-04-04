@@ -122,21 +122,6 @@ body.app--settings {
   opacity: 0.98;
 }
 
-/* Above resize strips (z-index 50); must be a sibling after the bar, not inside it */
-.overlay__chrome {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  z-index: 60;
-  display: flex;
-  justify-content: flex-end;
-  margin: 0;
-  padding: 0;
-  pointer-events: auto;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
 /* Invisible hit targets above the bar; startResizeDragging (Tauri) — no native title bar */
 .overlay__resize {
   position: absolute;
@@ -148,7 +133,7 @@ body.app--settings {
 .overlay__resize--North {
   top: 0;
   left: 0;
-  right: 40px;
+  right: 0;
   height: 6px;
   cursor: ns-resize;
 }
@@ -207,26 +192,6 @@ body.app--settings {
   width: 10px;
   height: 10px;
   cursor: nwse-resize;
-}
-
-.overlay__hide {
-  width: 22px;
-  height: 22px;
-  line-height: 20px;
-  padding: 0;
-  font-size: 16px;
-  border: none;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #cac4d0;
-  cursor: pointer;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
-}
-
-.overlay__hide:hover {
-  background: rgba(239, 68, 68, 0.35);
-  color: #fff;
 }
 
 /* —— Settings window —— */

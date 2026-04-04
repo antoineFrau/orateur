@@ -233,12 +233,6 @@ function OverlayPanel() {
     };
   }, [isActive]);
 
-  const hideToTray = useCallback(async () => {
-    if (await isTauri()) {
-      await getCurrentWindow().hide();
-    }
-  }, []);
-
   return (
     <div className="overlay">
       <div
@@ -276,16 +270,6 @@ function OverlayPanel() {
         </div>
       </div>
       <OverlayResizeEdges />
-      <div className="overlay__chrome">
-        <button
-          type="button"
-          className="overlay__hide"
-          title="Hide to tray"
-          onClick={hideToTray}
-        >
-          ×
-        </button>
-      </div>
     </div>
   );
 }

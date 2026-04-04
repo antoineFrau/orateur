@@ -15,10 +15,10 @@
       {
         "label": "overlay",
         "title": "Orateur",
-        "width": 400,
-        "height": 132,
+        "width": 280,
+        "height": 40,
         "minWidth": 280,
-        "minHeight": 96,
+        "minHeight": 40,
         "decorations": false,
         "transparent": true,
         "resizable": true,
