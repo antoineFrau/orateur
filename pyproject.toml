@@ -33,6 +33,7 @@ orateur = "orateur.cli:main"
 [dependency-groups]
 dev = [
     "build>=1.2.0",
+    "pre-commit>=4.2.0",
     "python-semantic-release>=10.3.1",
     "ruff>=0.15.9",
     "ty>=0.0.29",

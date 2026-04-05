@@ -560,4 +560,3 @@ pub fn get_orateur_cli_release_info(app: AppHandle) -> Result<OrateurCliReleaseI
         update_available,
     })
 }
-
