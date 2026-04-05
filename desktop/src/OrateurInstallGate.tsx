@@ -127,6 +127,14 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
     <div className="installGate" role="dialog" aria-modal="true" aria-labelledby="installGate-title">
       <div className="installGate__backdrop" />
       <div className="installGate__panel">
+        <img
+          className="installGate__logo"
+          src="/logo.png"
+          alt=""
+          width={48}
+          height={48}
+          decoding="async"
+        />
         <h2 id="installGate-title" className="installGate__title">
           {phase === "checking" ? "Checking Python…" : "Install Orateur (Python)"}
         </h2>

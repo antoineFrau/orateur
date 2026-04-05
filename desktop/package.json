@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "copy-install-resources": "node ../scripts/copy-to-desktop-resources.mjs",
     "preview": "vite preview",
+    "icons": "tauri icon public/logo.png",
     "tauri": "tauri"
   },
   "dependencies": {

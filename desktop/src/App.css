@@ -212,6 +212,15 @@ body.app--settings {
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
+.installGate__logo {
+  display: block;
+  width: 48px;
+  height: auto;
+  margin: 0 0 14px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
 .installGate__title {
   margin: 0 0 12px;
   font-size: 1.1rem;
@@ -308,8 +317,23 @@ body.app--settings {
   box-sizing: border-box;
 }
 
+.settings__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.settings__logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 8px;
+}
+
 .settings__title {
-  margin: 0 0 14px;
+  margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
 }

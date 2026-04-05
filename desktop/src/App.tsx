@@ -134,7 +134,17 @@ function SettingsPanel() {
 
   return (
     <div className="settings">
-      <h1 className="settings__title">Settings</h1>
+      <header className="settings__header">
+        <img
+          className="settings__logo"
+          src="/logo.png"
+          alt=""
+          width={40}
+          height={40}
+          decoding="async"
+        />
+        <h1 className="settings__title">Settings</h1>
+      </header>
       <p className="settings__hint">
         Path to <code>ui_events.jsonl</code> (same as Quickshell or{" "}
         <code>orateur run</code> with <code>ui_events_mirror</code>). Default
