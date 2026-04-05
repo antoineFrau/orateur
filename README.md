@@ -24,18 +24,18 @@ Use a system Python that satisfies **3.10+** (the venv used by `orateur setup` i
 
 ### From GitHub Releases (no PyPI)
 
-Each [release](https://github.com/antoineFrau/orateur/releases) publishes **`install.sh`**, a **wheel**, an **sdist**, **`quickshell-orateur.tar.gz`** (panel assets), and the **`bin/orateur`** launcher. The installer creates **`~/.local/share/orateur/venv`**, installs Orateur with pip, unpacks Quickshell files under that data directory, and installs the launcher as **`~/.local/bin/orateur`** (override with **`ORATEUR_BIN_DIR`**).
+Each [release](https://github.com/orateurhq/orateur/releases) publishes **`install.sh`**, a **wheel**, an **sdist**, **`quickshell-orateur.tar.gz`** (panel assets), and the **`bin/orateur`** launcher. The installer creates **`~/.local/share/orateur/venv`**, installs Orateur with pip, unpacks Quickshell files under that data directory, and installs the launcher as **`~/.local/bin/orateur`** (override with **`ORATEUR_BIN_DIR`**).
 
 **One command** (replace the tag with the release you want):
 
 ```bash
-curl -fsSL https://github.com/antoineFrau/orateur/releases/download/v0.1.3/install.sh | bash
+curl -fsSL https://github.com/orateurhq/orateur/releases/download/v0.1.3/install.sh | bash
 ```
 
 The release’s **`install.sh`** embeds the version, so it needs no arguments. To run a copy of [`scripts/install.sh`](scripts/install.sh) from the repository instead, pass a version or set **`ORATEUR_VERSION`**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/antoineFrau/orateur/main/scripts/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/orateurhq/orateur/main/scripts/install.sh -o install.sh
 chmod +x install.sh
 ./install.sh 0.1.3
 # or: ORATEUR_VERSION=0.1.3 ./install.sh

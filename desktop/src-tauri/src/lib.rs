@@ -4,6 +4,8 @@
 #[cfg(desktop)]
 mod tray;
 
+mod release_info;
+
 mod env_check;
 
 mod daemon;
@@ -158,6 +160,16 @@ fn restart_tail_listener(
         },
     );
     Ok(())
+}
+
+#[tauri::command]
+fn get_check_orateur_cli_on_startup(app: AppHandle) -> bool {
+    daemon::is_check_orateur_cli_on_startup_enabled(&app)
+}
+
+#[tauri::command]
+fn set_check_orateur_cli_on_startup(app: AppHandle, enabled: bool) -> Result<(), String> {
+    daemon::set_check_orateur_cli_on_startup(&app, enabled)
 }
 
 struct TailState {
@@ -433,6 +445,10 @@ pub fn run() {
             env_check::check_orateur_environment,
             env_check::get_orateur_install_preview,
             env_check::install_orateur_from_desktop,
+            env_check::upgrade_orateur_cli,
+            env_check::get_orateur_cli_release_info,
+            get_check_orateur_cli_on_startup,
+            set_check_orateur_cli_on_startup,
             daemon::get_auto_start_daemon,
             daemon::set_auto_start_daemon,
             daemon::trigger_orateur_daemon,

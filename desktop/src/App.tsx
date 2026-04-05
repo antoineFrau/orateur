@@ -4,7 +4,10 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Waveform } from "./components/Waveform";
 import { debug } from "./debug";
-import { OrateurInstallGate } from "./OrateurInstallGate";
+import {
+  OrateurInstallGate,
+  type OrateurCliReleaseInfo,
+} from "./OrateurInstallGate";
 import {
   initialOrateurState,
   overlayVisualState,
@@ -69,6 +72,12 @@ function SettingsPanel() {
   const [eventsPathLabel, setEventsPathLabel] = useState("");
   const [pathDraft, setPathDraft] = useState("");
   const [autoStartDaemon, setAutoStartDaemon] = useState(true);
+  const [checkCliOnStartup, setCheckCliOnStartup] = useState(false);
+  const [cliHint, setCliHint] = useState<{ latest: string } | null>(null);
+  const [cliInfo, setCliInfo] = useState<OrateurCliReleaseInfo | null>(null);
+  const [cliPhase, setCliPhase] = useState<"idle" | "checking" | "updating">("idle");
+  const [cliMessage, setCliMessage] = useState<string | null>(null);
+  const [cliLog, setCliLog] = useState<string | null>(null);
   const [updatePhase, setUpdatePhase] = useState<
     "idle" | "checking" | "uptodate" | "downloading" | "error"
   >("idle");
@@ -90,6 +99,41 @@ function SettingsPanel() {
     void invoke<boolean>("get_auto_start_daemon")
       .then(setAutoStartDaemon)
       .catch(() => {});
+    void invoke<boolean>("get_check_orateur_cli_on_startup")
+      .then(setCheckCliOnStartup)
+      .catch(() => {});
+    try {
+      const raw = sessionStorage.getItem("orateur_cli_update_hint");
+      if (raw) {
+        setCliHint(JSON.parse(raw) as { latest: string });
+      }
+    } catch {
+      /* ignore */
+    }
+    void invoke<OrateurCliReleaseInfo>("get_orateur_cli_release_info")
+      .then((info) => {
+        setCliInfo(info);
+        setCliMessage(null);
+      })
+      .catch((e) => {
+        setCliMessage(e instanceof Error ? e.message : String(e));
+      });
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<{ line: string; isStderr: boolean }>("orateur_install_log", (e) => {
+      const { line, isStderr } = e.payload;
+      setCliLog(
+        (prev) =>
+          (prev ?? "") + (isStderr ? "[stderr] " : "") + line + "\n",
+      );
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   const savePath = useCallback(async () => {
@@ -101,6 +145,43 @@ function SettingsPanel() {
       payload: { path: pathOpt },
     });
   }, [pathDraft]);
+
+  const refreshCliRelease = useCallback(async () => {
+    setCliPhase("checking");
+    setCliMessage(null);
+    try {
+      const info = await invoke<OrateurCliReleaseInfo>("get_orateur_cli_release_info");
+      setCliInfo(info);
+    } catch (e) {
+      setCliMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCliPhase("idle");
+    }
+  }, []);
+
+  const runCliUpgrade = useCallback(async () => {
+    setCliPhase("updating");
+    setCliLog("");
+    setCliMessage(null);
+    try {
+      const r = await invoke<{ ok: boolean; stdout: string; stderr: string }>(
+        "upgrade_orateur_cli",
+      );
+      if (r.ok) {
+        const info = await invoke<OrateurCliReleaseInfo>("get_orateur_cli_release_info");
+        setCliInfo(info);
+        sessionStorage.removeItem("orateur_cli_update_hint");
+        setCliHint(null);
+        setCliMessage("Orateur CLI updated.");
+      } else {
+        setCliMessage([r.stderr, r.stdout].filter(Boolean).join("\n") || "Update failed.");
+      }
+    } catch (e) {
+      setCliMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCliPhase("idle");
+    }
+  }, []);
 
   const checkAndInstallUpdates = useCallback(async () => {
     if (!(await isTauri())) {
@@ -134,6 +215,12 @@ function SettingsPanel() {
 
   return (
     <div className="settings">
+      {cliHint ? (
+        <p className="settings__cli-banner" role="status">
+          A newer Orateur CLI is available (latest: <code>{cliHint.latest}</code>). Update below or dismiss
+          this message by updating.
+        </p>
+      ) : null}
       <header className="settings__header">
         <img
           className="settings__logo"
@@ -181,7 +268,67 @@ function SettingsPanel() {
         the STT stack is missing; applies on next launch)
       </label>
       <div className="settings__section">
-        <p className="settings__hint">App updates (signed builds from GitHub Releases).</p>
+        <p className="settings__hint">Orateur CLI (Python package and launcher from GitHub Releases).</p>
+        {cliInfo ? (
+          <p className="settings__path">
+            Installed:{" "}
+            <code>{cliInfo.currentVersion ?? "not detected"}</code> — latest:{" "}
+            <code>{cliInfo.latestVersion}</code>
+          </p>
+        ) : null}
+        <label className="settings__label settings__label--checkbox">
+          <input
+            type="checkbox"
+            checked={checkCliOnStartup}
+            onChange={(e) => {
+              const v = e.target.checked;
+              setCheckCliOnStartup(v);
+              void invoke("set_check_orateur_cli_on_startup", { enabled: v }).catch(() => {});
+            }}
+          />
+          Check for CLI updates when the app starts (compares to GitHub; no auto-install)
+        </label>
+        <div className="settings__row">
+          <button
+            type="button"
+            className="settings__btn"
+            disabled={cliPhase === "checking" || cliPhase === "updating"}
+            onClick={() => void refreshCliRelease()}
+          >
+            {cliPhase === "checking" ? "Checking…" : "Check CLI updates"}
+          </button>
+          <button
+            type="button"
+            className="settings__btn settings__btn--primary"
+            disabled={
+              cliPhase === "checking" ||
+              cliPhase === "updating" ||
+              !cliInfo?.updateAvailable
+            }
+            onClick={() => void runCliUpgrade()}
+          >
+            {cliPhase === "updating"
+              ? "Updating…"
+              : cliInfo?.currentVersion
+                ? "Update CLI"
+                : "Install CLI"}
+          </button>
+        </div>
+        {cliLog ? <pre className="settings__cli-log">{cliLog}</pre> : null}
+        {cliMessage ? (
+          <p
+            className={
+              cliMessage.startsWith("Orateur CLI updated")
+                ? "settings__update-msg"
+                : "settings__update-msg settings__update-msg--error"
+            }
+          >
+            {cliMessage}
+          </p>
+        ) : null}
+      </div>
+      <div className="settings__section">
+        <p className="settings__hint">Desktop app updates (signed builds from GitHub Releases).</p>
         <div className="settings__row">
           <button
             type="button"
@@ -368,6 +515,26 @@ export default function App() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (mode !== "overlay") return;
+    void (async () => {
+      if (!(await isTauri())) return;
+      const on = await invoke<boolean>("get_check_orateur_cli_on_startup").catch(() => false);
+      if (!on) return;
+      const info = await invoke<OrateurCliReleaseInfo>("get_orateur_cli_release_info").catch(
+        () => null,
+      );
+      if (info?.updateAvailable) {
+        sessionStorage.setItem(
+          "orateur_cli_update_hint",
+          JSON.stringify({ latest: info.latestVersion }),
+        );
+      } else {
+        sessionStorage.removeItem("orateur_cli_update_hint");
+      }
+    })();
+  }, [mode]);
 
   if (mode === "loading") {
     return null;

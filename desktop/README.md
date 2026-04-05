@@ -6,19 +6,19 @@ A small **status overlay** that follows **`ui_events.jsonl`** with the same even
 
 - [Node.js](https://nodejs.org/) (for `npm`)
 - [Rust](https://rustup.rs/) (for the Tauri backend)
-- **Python 3.10+** on the machine if you use the in-app “Install with pip” flow (see below)
+- **Python 3.10+** on the machine for the in-app install flow (see below)
 
 ## Python package (first launch)
 
 The desktop app **tails `ui_events.jsonl`** and, by default, **starts `orateur run` in the background** (after **`orateur setup`** if the STT stack in `~/.local/share/orateur/venv` is not ready). It does not bundle the Python engine. On open, it checks for the **`orateur`** CLI (including **`~/.local/bin`** even when the GUI has a minimal `PATH`) or an importable `orateur` via the detected interpreter.
 
-- **Default install spec:** [`src-tauri/resources/orateur-pip-spec.txt`](./src-tauri/resources/orateur-pip-spec.txt) (pinned to `orateur==0.1.3`, matching the repo root `pyproject.toml`). Used to resolve the version for the installer and, on Windows, for `pip install --user`.
-- **Unix (macOS / Linux):** Before each `vite` / Tauri build, [`scripts/copy-to-desktop-resources.mjs`](../scripts/copy-to-desktop-resources.mjs) copies [`scripts/install.sh`](../scripts/install.sh) and [`bin/orateur`](../bin/orateur) into `src-tauri/resources/`. The in-app installer runs **`bash install.sh`**, which creates **`~/.local/share/orateur/venv`**, installs the wheel (bundled or from GitHub Releases), optionally fetches **`quickshell-orateur.tar.gz`**, and installs **`~/.local/bin/orateur`**. This matches the [main README](../README.md) “GitHub Releases” flow.
-- **Windows:** “Install” still runs **`pip install --user <spec>`** until a Windows-native installer exists.
-- **Offline / air-gapped builds:** Build a wheel at the repo root, copy it to `src-tauri/resources/orateur-bundle.whl`, and list it under `bundle.resources` in [`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json). When present, the Unix installer passes that path to **`install.sh`** as **`ORATEUR_WHEEL`**. The wheel file is gitignored in `src-tauri/resources/.gitignore`.
+- **Unix (macOS / Linux):** The in-app installer runs the **latest** release **`install.sh`** from GitHub (`curl …/releases/latest/download/install.sh | bash`), same idea as the [main README](../README.md) one-liner. Progress streams into the install dialog. The app does not pin a semver in code.
+- **Windows:** “Install” / “Update CLI” runs **`pip install --user`** on the wheel URL for the **latest** GitHub release (version resolved via the GitHub API).
+- **Offline / air-gapped builds:** Build a wheel at the repo root, copy it to `src-tauri/resources/orateur-bundle.whl`, and list it under `bundle.resources` in [`src-tauri/tauri.conf.json`](./src-tauri/tauri.conf.json). When present, the Unix installer runs the bundled [`scripts/install.sh`](../scripts/install.sh) (copied by [`scripts/copy-to-desktop-resources.mjs`](../scripts/copy-to-desktop-resources.mjs)) with **`ORATEUR_WHEEL`** set to that file, plus the bundled launcher when present. The wheel file is gitignored in `src-tauri/resources/.gitignore`.
+- **CLI updates:** **Settings** can **check** the latest release against the installed CLI and **update** using the same install path. Optional **Check for CLI updates when the app starts** stores a hint for the Settings screen (no automatic reinstall).
 - **After install:** Keep **`ui_events_mirror`** enabled for live events (default). The app runs **`orateur setup`** when the bundled venv exists but **`pywhispercpp`** is not importable, then **`orateur run`**. Logs: **`~/.cache/orateur/desktop-daemon.log`**. Turn auto-start off under **tray → Settings** (writes `auto-start-daemon` in the app config dir). If you already run **`orateur run`** elsewhere (e.g. systemd or a terminal), disable auto-start or you will have two daemons.
 
-**Manual QA (installer):** (1) No Python → expect “Install Python 3.10+”. (2) Python 3.10+ but no `orateur` on `PATH` → install runs **`install.sh`** (Unix) or pip (Windows). (3) `orateur` already on `PATH` → no gate. (4) After success → gate closes; **`orateur setup`** / **`orateur run`** still apply.
+**Manual QA (installer):** (1) No Python → expect “Install Python 3.10+” (gate). (2) Python 3.10+ but no `orateur` on `PATH` → install runs **latest `install.sh` via curl** (Unix) or **pip wheel from latest release** (Windows). (3) `orateur` already on `PATH` → no gate. (4) After success → gate closes; **`orateur setup`** / **`orateur run`** still apply.
 
 ## Development
 

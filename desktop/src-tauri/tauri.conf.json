@@ -65,7 +65,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwRTc4MTE5RTREREIzRkUKUldUK3M5M2tHWUhuSUlxNDQwTFNZRE9DZ1gwdG04N3BCMWNtR0k3QXQ1L1pqZlp2bUxqYm1MN3IK",
       "endpoints": [
-        "https://github.com/antoineFrau/orateur/releases/latest/download/latest.json"
+        "https://github.com/orateurhq/orateur/releases/latest/download/latest.json"
       ]
     }
   }

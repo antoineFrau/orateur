@@ -3,7 +3,7 @@
 # Release builds set DEFAULT_ORATEUR_VERSION so this can be run with no arguments.
 #
 # Environment (optional):
-#   ORATEUR_REPO           default: antoineFrau/orateur
+#   ORATEUR_REPO           default: orateurhq/orateur
 #   ORATEUR_VERSION        semver (overrides DEFAULT_ORATEUR_VERSION / $1)
 #   ORATEUR_WHEEL          local path or https URL to wheel (skips default GitHub URL)
 #   ORATEUR_LAUNCHER       path to launcher script to install (desktop bundle)
@@ -15,7 +15,7 @@ set -euo pipefail
 # Populated by .github/workflows/release.yml for release artifacts (semver only, no "v" prefix):
 DEFAULT_ORATEUR_VERSION="0.1.3"
 
-ORATEUR_REPO="${ORATEUR_REPO:-antoineFrau/orateur}"
+ORATEUR_REPO="${ORATEUR_REPO:-orateurhq/orateur}"
 ORATEUR_BIN_DIR="${ORATEUR_BIN_DIR:-$HOME/.local/bin}"
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/orateur"
 VENV_DIR="$DATA_DIR/venv"

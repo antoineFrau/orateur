@@ -128,6 +128,28 @@ pub fn set_auto_start_daemon(app: AppHandle, enabled: bool) -> Result<(), String
     std::fs::write(&p, v).map_err(|e| e.to_string())
 }
 
+pub fn is_check_orateur_cli_on_startup_enabled(app: &AppHandle) -> bool {
+    let Ok(dir) = app.path().app_config_dir() else {
+        return false;
+    };
+    let p = dir.join("check-orateur-cli-on-startup");
+    match std::fs::read_to_string(&p) {
+        Ok(s) => {
+            let t = s.trim().to_lowercase();
+            matches!(t.as_str(), "1" | "true" | "yes" | "on")
+        }
+        Err(_) => false,
+    }
+}
+
+pub fn set_check_orateur_cli_on_startup(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let p = dir.join("check-orateur-cli-on-startup");
+    let v = if enabled { "1\n" } else { "0\n" };
+    std::fs::write(&p, v).map_err(|e| e.to_string())
+}
+
 pub fn spawn_orateur_daemon_if_needed(app: &AppHandle, holder: &Arc<Mutex<Option<Child>>>) {
     if !is_auto_start_enabled(app) {
         return;

@@ -309,12 +309,50 @@ body.app--settings {
   color: #6b7280;
 }
 
+.installGate__hint {
+  font-size: 0.8rem;
+  color: #9ca3af;
+}
+
+.installGate__log--scroll {
+  max-height: 220px;
+}
+
 /* —— Settings window —— */
 .settings {
   padding: 20px 22px 28px;
   max-width: 560px;
   margin: 0 auto;
   box-sizing: border-box;
+}
+
+.settings__cli-banner {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #c4b5fd;
+  background: rgba(79, 70, 229, 0.15);
+  border-radius: 8px;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+}
+
+.settings__cli-banner code {
+  font-size: 0.85em;
+}
+
+.settings__cli-log {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  color: #b0aab8;
 }
 
 .settings__header {
@@ -384,6 +422,10 @@ body.app--settings {
 }
 
 .settings__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
   margin-top: 14px;
 }
 

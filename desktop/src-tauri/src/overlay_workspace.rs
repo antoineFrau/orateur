@@ -1,6 +1,6 @@
 //! Place the overlay on the user's current Space / virtual desktop / workspace when shown.
 
-use tauri::{Manager, Runtime, WebviewWindow};
+use tauri::{Runtime, WebviewWindow};
 
 /// Align the overlay with the active desktop, then show it.
 ///

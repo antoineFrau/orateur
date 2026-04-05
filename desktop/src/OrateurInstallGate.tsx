@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { invoke, isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 const SNOOZE_KEY = "orateur_install_snoozed";
 
@@ -14,15 +15,20 @@ export type OrateurEnvCheck = {
 };
 
 export type InstallPreview = {
-  pipSpec: string;
-  commandDisplay: string;
   usesBundledWheel: boolean;
+  installSource: string;
 };
 
 export type OrateurInstallResult = {
   ok: boolean;
   stdout: string;
   stderr: string;
+};
+
+export type OrateurCliReleaseInfo = {
+  currentVersion: string | null;
+  latestVersion: string;
+  updateAvailable: boolean;
 };
 
 type GatePhase = "pending" | "checking" | "blocked" | "passed";
@@ -37,6 +43,22 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
   const [preview, setPreview] = useState<InstallPreview | null>(null);
   const [installing, setInstalling] = useState(false);
   const [installLog, setInstallLog] = useState<string | null>(null);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<{ line: string; isStderr: boolean }>("orateur_install_log", (e) => {
+      const { line, isStderr } = e.payload;
+      setInstallLog((prev) => {
+        const next = (prev ?? "") + (isStderr ? "[stderr] " : "") + line + "\n";
+        return next;
+      });
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   const runCheck = useCallback(async () => {
     const c = await invoke<OrateurEnvCheck>("check_orateur_environment");
@@ -91,10 +113,10 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
 
   const runInstall = useCallback(async () => {
     setInstalling(true);
-    setInstallLog(null);
+    setInstallLog("");
     try {
       const r = await invoke<OrateurInstallResult>("install_orateur_from_desktop");
-        if (r.ok) {
+      if (r.ok) {
         const c = await invoke<OrateurEnvCheck>("check_orateur_environment");
         setCheck(c);
         if (c.orateurInstalled) {
@@ -102,15 +124,20 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
           setPhase("passed");
         } else {
           setInstallLog(
-            [r.stdout, r.stderr].filter(Boolean).join("\n") +
+            (prev) =>
+              (prev ?? "") +
+              [r.stdout, r.stderr].filter(Boolean).join("\n") +
               "\nInstall reported success but orateur is still not detected. Try restarting the app, or install manually.",
           );
         }
       } else {
-        setInstallLog([r.stderr, r.stdout].filter(Boolean).join("\n") || "Install failed.");
+        setInstallLog(
+          (prev) =>
+            (prev ?? "") + ([r.stderr, r.stdout].filter(Boolean).join("\n") || "Install failed."),
+        );
       }
     } catch (e) {
-      setInstallLog(e instanceof Error ? e.message : String(e));
+      setInstallLog((prev) => (prev ?? "") + (e instanceof Error ? e.message : String(e)));
     } finally {
       setInstalling(false);
     }
@@ -136,33 +163,32 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
           decoding="async"
         />
         <h2 id="installGate-title" className="installGate__title">
-          {phase === "checking" ? "Checking Python…" : "Install Orateur (Python)"}
+          {phase === "checking" ? "Checking…" : "Install Orateur"}
         </h2>
         {phase === "checking" && (
-          <p className="installGate__text">Looking for Python 3.10+ and the <code>orateur</code> package.</p>
+          <p className="installGate__text">
+            Looking for the <code>orateur</code> command and Python 3.10+.
+          </p>
         )}
         {phase === "blocked" && check && (
           <>
             <p className="installGate__text">
-              This desktop app only reads <code>ui_events.jsonl</code>. The <strong>orateur</strong> Python
-              package is not available on this system yet (or the CLI is not on your <code>PATH</code>).
+              This desktop app only reads <code>ui_events.jsonl</code>. The <strong>orateur</strong> CLI
+              is not available on this system yet (or it is not on your <code>PATH</code>).
             </p>
-            {check.detail ? (
-              <pre className="installGate__detail">{check.detail}</pre>
+            {check.detail ? <pre className="installGate__detail">{check.detail}</pre> : null}
+            {preview?.usesBundledWheel ? (
+              <p className="installGate__hint installGate__text">Using offline bundle from the app.</p>
             ) : null}
-            {preview && (
-              <p className="installGate__cmd">
-                <span className="installGate__cmdLabel">Command to run:</span>{" "}
-                <code>{preview.commandDisplay}</code>
-              </p>
-            )}
             {!check.pythonOk && (
               <p className="installGate__warn">
                 Install <strong>Python 3.10+</strong> first (from python.org or your package manager), then
                 reopen this app.
               </p>
             )}
-            {installLog && <pre className="installGate__log">{installLog}</pre>}
+            {installLog !== null && installLog !== "" && (
+              <pre className="installGate__log installGate__log--scroll">{installLog}</pre>
+            )}
             <div className="installGate__actions">
               <button
                 type="button"
@@ -170,14 +196,9 @@ export function OrateurInstallGate({ children }: { children: React.ReactNode }) 
                 disabled={installing || !check.pythonOk}
                 onClick={() => void runInstall()}
               >
-                {installing ? "Installing…" : "Install with pip"}
+                {installing ? "Installing…" : "Install"}
               </button>
-              <button
-                type="button"
-                className="installGate__btn"
-                disabled={installing}
-                onClick={snooze}
-              >
+              <button type="button" className="installGate__btn" disabled={installing} onClick={snooze}>
                 Not now
               </button>
             </div>
