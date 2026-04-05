@@ -519,6 +519,40 @@ body.app--settings {
   flex-shrink: 0;
 }
 
+/* One flex item after the checkbox so inline <code> nodes don’t split into spaced flex items */
+.settings__label--checkbox .settings__checkbox-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings__section-title {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.settings__checkbox-lead {
+  display: block;
+  font-weight: 600;
+  color: #e8e6ed;
+  margin-bottom: 4px;
+}
+
+.settings__checkbox-sub {
+  display: block;
+  font-size: 0.82rem;
+  color: #9ca3af;
+  line-height: 1.45;
+  font-weight: 400;
+}
+
+.settings__checkbox-sub code {
+  font-size: 0.88em;
+}
+
 .settings__input {
   background: #2b2930;
   border: 1px solid #48464f;

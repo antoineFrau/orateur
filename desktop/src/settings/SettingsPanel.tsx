@@ -44,7 +44,7 @@ function RestartRunHint({ autoStartDaemon }: { autoStartDaemon: boolean }) {
   return (
     <div className="settings__restart-hint">
       <p className="settings__hint">
-        Changes to shortcuts, speech, or LLM settings apply after <code>orateur run</code> restarts and
+        Changes to shortcuts, STT/TTS/STS, or LLM settings apply after <code>orateur run</code> restarts and
         reloads <code>config.json</code>.
       </p>
       {autoStartDaemon ? (
@@ -54,7 +54,7 @@ function RestartRunHint({ autoStartDaemon }: { autoStartDaemon: boolean }) {
             className="settings__btn settings__btn--primary"
             onClick={() => void invoke("restart_orateur_daemon").catch(() => {})}
           >
-            Restart speech daemon
+            Restart Orateur
           </button>
         </div>
       ) : null}
@@ -71,12 +71,9 @@ export function SettingsPanel() {
   const [config, setConfig] = useState<Record<string, unknown>>(() =>
     mergeOrateurConfig(null),
   );
-  const [configPath, setConfigPath] = useState("");
   const [mcpJsonDraft, setMcpJsonDraft] = useState("{}");
   const [mcpJsonError, setMcpJsonError] = useState<string | null>(null);
 
-  const [eventsPathLabel, setEventsPathLabel] = useState("");
-  const [pathDraft, setPathDraft] = useState("");
   const [autoStartDaemon, setAutoStartDaemon] = useState(true);
   const [checkCliOnStartup, setCheckCliOnStartup] = useState(false);
   const [cliHint, setCliHint] = useState<{ latest: string } | null>(null);
@@ -110,21 +107,6 @@ export function SettingsPanel() {
 
   useEffect(() => {
     void reloadConfig();
-    void invoke<string>("get_orateur_config_path")
-      .then(setConfigPath)
-      .catch(() => {});
-    void invoke<string>("get_resolved_events_path")
-      .then(setEventsPathLabel)
-      .catch(() => {});
-    void (async () => {
-      try {
-        const def = await invoke<string>("get_default_events_path");
-        const cfg = await invoke<string | null>("read_events_path_config");
-        setPathDraft(cfg?.trim() || def);
-      } catch {
-        setPathDraft("");
-      }
-    })();
     void invoke<boolean>("get_auto_start_daemon")
       .then(setAutoStartDaemon)
       .catch(() => {});
@@ -164,31 +146,6 @@ export function SettingsPanel() {
       unlisten?.();
     };
   }, []);
-
-  const savePath = useCallback(async () => {
-    const trimmed = pathDraft.trim();
-    const def = await invoke<string>("get_default_events_path");
-    const pathOpt =
-      trimmed.length === 0 || trimmed === def ? null : trimmed;
-    await invoke("restart_tail_listener", {
-      payload: { path: pathOpt },
-    });
-  }, [pathDraft]);
-
-  const saveGeneral = useCallback(async () => {
-    setSaveMsg(null);
-    setSaveErr(null);
-    try {
-      await invoke("write_orateur_config_patch", {
-        patch: { ui_events_mirror: getBool(config, "ui_events_mirror", true) },
-      });
-      await savePath();
-      setSaveMsg("General settings saved.");
-      void reloadConfig();
-    } catch (e) {
-      setSaveErr(e instanceof Error ? e.message : String(e));
-    }
-  }, [config, savePath, reloadConfig]);
 
   const saveShortcuts = useCallback(async () => {
     setSaveMsg(null);
@@ -434,44 +391,11 @@ export function SettingsPanel() {
 
       {tab === "general" ? (
         <>
+          <h2 className="settings__section-title">Orateur</h2>
           <p className="settings__hint">
-            Path to <code>ui_events.jsonl</code> (written by <code>orateur run</code> when mirroring is
-            enabled). This app tails the same file for overlay updates. Default matches{" "}
-            <code>~/.cache/orateur/ui_events.jsonl</code>.
-          </p>
-          <label className="settings__label">
-            Events file
-            <input
-              className="settings__input"
-              value={pathDraft}
-              onChange={(e) => setPathDraft(e.target.value)}
-              placeholder={eventsPathLabel}
-            />
-          </label>
-          <p className="settings__path">
-            Active: <code>{eventsPathLabel || "…"}</code>
-          </p>
-          {configPath ? (
-            <p className="settings__path">
-              Orateur config file: <code>{configPath}</code>
-            </p>
-          ) : null}
-          <label className="settings__label settings__label--checkbox">
-            <input
-              type="checkbox"
-              checked={getBool(config, "ui_events_mirror", true)}
-              onChange={(e) => setKey("ui_events_mirror", e.target.checked)}
-            />
-            Mirror UI events to <code>ui_events.jsonl</code> (lets this app and other tools follow
-            recording and TTS state)
-          </label>
-          <div className="settings__row">
-            <button type="button" className="settings__btn settings__btn--primary" onClick={() => void saveGeneral()}>
-              Save general
-            </button>
-          </div>
-          <p className="settings__hint settings__hint--sub">
-            Saves the mirror option and applies the events file path (restarts the file tail).
+            The background process powers global shortcuts, speech-to-text, text-to-speech, and
+            speech-to-speech — everything driven by <code>orateur run</code> and your{" "}
+            <code>config.json</code>.
           </p>
           <label className="settings__label settings__label--checkbox">
             <input
@@ -483,8 +407,14 @@ export function SettingsPanel() {
                 void invoke("set_auto_start_daemon", { enabled: v }).catch(() => {});
               }}
             />
-            Start <code>orateur run</code> when this app launches (runs <code>orateur setup</code> first if
-            the STT stack is missing; applies on next launch)
+            <span className="settings__checkbox-text">
+              <span className="settings__checkbox-lead">Start Orateur when this app opens</span>
+              <span className="settings__checkbox-sub">
+                Runs <code>orateur run</code> in the background (STT, TTS, STS, and shortcuts). If models or
+                the STT environment are not ready, <code>orateur setup</code> runs first. Takes effect the
+                next time you launch this app.
+              </span>
+            </span>
           </label>
 
           <div className="settings__section">
@@ -506,7 +436,9 @@ export function SettingsPanel() {
                   void invoke("set_check_orateur_cli_on_startup", { enabled: v }).catch(() => {});
                 }}
               />
-              Check for CLI updates when the app starts (compares to GitHub; no auto-install)
+              <span className="settings__checkbox-text">
+                Check for CLI updates when the app starts (compares to GitHub; no auto-install)
+              </span>
             </label>
             <div className="settings__row">
               <button
@@ -617,7 +549,9 @@ export function SettingsPanel() {
               checked={getBool(config, "grab_keys", false)}
               onChange={(e) => setKey("grab_keys", e.target.checked)}
             />
-            Grab keys (Linux evdev; may require permissions)
+            <span className="settings__checkbox-text">
+              Grab keys (Linux evdev; may require permissions)
+            </span>
           </label>
           <div className="settings__row">
             <button
@@ -701,7 +635,7 @@ export function SettingsPanel() {
               checked={getBool(config, "stt_whisper_verbose", false)}
               onChange={(e) => setKey("stt_whisper_verbose", e.target.checked)}
             />
-            Verbose Whisper logging
+            <span className="settings__checkbox-text">Verbose Whisper logging</span>
           </label>
           <p className="settings__hint">Audio input (optional filters for Linux evdev)</p>
           <label className="settings__label">
