@@ -1,0 +1,31 @@
+# CHANGELOG
+
+{% for version, release in context.history.released.items() %}
+
+## {{ version.as_tag() }} ({{ release.tagged_date.strftime("%Y-%m-%d") }})
+{% for type_, commits in release["elements"] | dictsort %}
+### {{ type_ | capitalize }}
+{% for commit in commits -%}
+{%- set message_lines = commit.commit.message.split("\n") -%}
+{%- set ns = namespace(description_lines=[], in_description=False) -%}
+{%- for line in message_lines -%}
+    {%- if line.strip() == "## Description" -%}
+        {%- set ns.in_description = True -%}
+    {%- elif line.strip().startswith("## ") and ns.in_description -%}
+        {%- set ns.in_description = False -%}
+    {%- elif ns.in_description and line.strip() -%}
+        {%- set ns.description_lines = ns.description_lines + [line.rstrip()] -%}
+    {%- endif -%}
+{%- endfor -%}
+{%- if ns.description_lines %}
+
+* ([`{{ commit.commit.hexsha[:7] }}`]({{ commit.commit.hexsha | commit_hash_url }}))
+
+> {{ ns.description_lines | join('\n> ') }}
+
+{%- else %}
+
+* {{ commit.commit.message.split("##")[0].split("\n")[0].rstrip() }} ([`{{ commit.commit.hexsha[:7] }}`]({{ commit.commit.hexsha | commit_hash_url }}))
+
+{%- endif %}
+{% endfor %}{% endfor %}{% endfor %}

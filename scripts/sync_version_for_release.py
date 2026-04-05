@@ -18,6 +18,15 @@ def read_pyproject_version() -> str:
     return m.group(1)
 
 
+def read_init_version() -> str:
+    path = ROOT / "src" / "orateur" / "__init__.py"
+    text = path.read_text(encoding="utf-8")
+    m = re.search(r'^__version__\s*=\s*"([^"]+)"', text, re.MULTILINE)
+    if not m:
+        raise SystemExit("Could not find __version__ in src/orateur/__init__.py")
+    return m.group(1)
+
+
 def write_if_changed(path: Path, content: str) -> bool:
     old = path.read_text(encoding="utf-8") if path.exists() else None
     if old == content:
@@ -174,21 +183,44 @@ def patch_cargo_lock(new: str) -> bool:
 
 
 def main() -> None:
-    if len(sys.argv) != 2:
-        print("Usage: sync_version_for_release.py <new_version>", file=sys.stderr)
+    if len(sys.argv) == 2:
+        new = sys.argv[1].strip()
+        if not re.match(r"^\d+\.\d+\.\d+$", new):
+            print("Version must be semver X.Y.Z (e.g. 0.1.3)", file=sys.stderr)
+            sys.exit(1)
+    elif len(sys.argv) == 1:
+        new = read_pyproject_version()
+    else:
+        print(
+            "Usage: sync_version_for_release.py [<new_version>]",
+            file=sys.stderr,
+        )
         sys.exit(2)
-    new = sys.argv[1].strip()
-    if not re.match(r"^\d+\.\d+\.\d+$", new):
-        print("Version must be semver X.Y.Z (e.g. 0.1.3)", file=sys.stderr)
-        sys.exit(1)
-    old = read_pyproject_version()
+
+    pyv = read_pyproject_version()
+    initv = read_init_version()
+
+    if pyv == new and initv == new:
+        print(f"No version change (already {new}).")
+        return
+
+    if pyv == new:
+        old = initv
+        skip_pyproject = True
+    else:
+        old = pyv
+        skip_pyproject = False
+
     if old == new:
         print(f"No version change (already {new}).")
         return
 
     changed: list[str] = []
     for label, fn in [
-        ("pyproject.toml", lambda: patch_pyproject(old, new)),
+        (
+            "pyproject.toml",
+            lambda: (not skip_pyproject) and patch_pyproject(old, new),
+        ),
         ("src/orateur/__init__.py", lambda: patch_init(old, new)),
         ("README.md", lambda: patch_readme(old, new)),
         ("desktop/README.md", lambda: patch_desktop_readme(old, new)),
