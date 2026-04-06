@@ -1,6 +1,10 @@
 # CHANGELOG
 
 
+## v0.2.1 (2026-04-06)
+### Continuous integration
+
+* ci: cleanup and keep only auto deploy ([`93cf75d`](https://github.com/orateurhq/orateur/commit/93cf75dfdd11bf05311282f4cdcc9d63988b97a9))
 ## v0.2.0 (2026-04-06)
 ### Continuous integration
 
