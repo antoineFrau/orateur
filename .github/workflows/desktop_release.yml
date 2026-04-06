@@ -1,0 +1,159 @@
+# Manual desktop (Tauri) binaries: bump desktop versions → build frontend once → matrix native builds with Rust cache.
+# Desktop app root: ./desktop (package.json + src-tauri). Tags: desktop-v* (Python releases use v* via semantic-release).
+name: Desktop app release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semver version (e.g. 0.2.0)"
+        required: true
+        type: string
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version (desktop only)
+        working-directory: desktop
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const p = require('./package.json');
+            p.version = process.env.VERSION;
+            fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+          node -e "
+            const fs = require('fs');
+            const j = require('./src-tauri/tauri.conf.json');
+            j.version = process.env.VERSION;
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(j, null, 2) + '\n');
+          "
+          sed -i "s/^version = .*/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          sed -i '/^name = "orateur-desktop"$/{n;s/^version = .*/version = "'"$VERSION"'"/}' src-tauri/Cargo.lock
+          npm install --package-lock-only
+
+      - name: Commit and push version bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add desktop/package.json desktop/package-lock.json desktop/src-tauri/tauri.conf.json desktop/src-tauri/Cargo.toml desktop/src-tauri/Cargo.lock
+          git diff --staged --quiet || git commit -m "chore: bump desktop version to ${{ github.event.inputs.version }} [skip ci]"
+          git push origin HEAD:main
+
+  frontend:
+    needs: bump
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Sync with remote main (include version bump commit)
+        run: git fetch origin main && git reset --hard origin/main
+
+      - name: Install and build frontend
+        working-directory: desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: desktop/dist/
+
+  build:
+    needs: frontend
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+            rust_cache_key: macos-aarch64
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+            rust_cache_key: macos-x86_64
+          - platform: ubuntu-22.04
+            args: ""
+            rust_cache_key: linux-x86_64-gnu
+          - platform: windows-latest
+            args: ""
+            rust_cache_key: windows-x86_64-msvc
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Sync with remote main
+        run: git fetch origin main && git reset --hard origin/main
+
+      - name: Download frontend
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: desktop/dist
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-orateur-desktop-release
+          key: ${{ matrix.rust_cache_key }}
+          workspaces: desktop/src-tauri -> target
+
+      - name: Install npm dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          SKIP_FRONTEND_BUILD: "1"
+        with:
+          projectPath: desktop
+          tagName: desktop-v__VERSION__
+          releaseName: "Orateur v__VERSION__"
+          releaseBody: "Desktop app builds and updater metadata (latest.json). See assets to download."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
