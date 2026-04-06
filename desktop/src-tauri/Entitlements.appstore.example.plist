@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Base App Store sandbox (see Tauri App Store guide). -->
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+  <!-- HTTPS, updater checks, etc. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+  <!-- Replace YOUR_TEAM_ID with your Apple Developer Team ID (App ID Prefix). -->
+  <key>com.apple.application-identifier</key>
+  <string>YOUR_TEAM_ID.com.orateur.desktop</string>
+  <key>com.apple.developer.team-identifier</key>
+  <string>YOUR_TEAM_ID</string>
+</dict>
+</plist>

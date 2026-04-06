@@ -13,3 +13,10 @@ site/
 .env.production.local
 
 *.mp4
+
+# Apple code signing & App Store (never commit keys or profiles)
+desktop/src-tauri/Entitlements.appstore.plist
+desktop/src-tauri/*.provisionprofile
+**/AuthKey_*.p8
+**/private_keys/
+*.p12
