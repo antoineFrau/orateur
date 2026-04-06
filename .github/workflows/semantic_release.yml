@@ -14,7 +14,9 @@ jobs:
   create-release:
     needs: verify
     runs-on: ubuntu-latest
-    if: github.actor != vars.CICD_USERNAME
+    # Skip when the last push was from Actions (default actor for GITHUB_TOKEN), to avoid release loops.
+    # See default env vars: https://docs.github.com/en/actions/reference/workflows-and-actions/variables
+    if: github.actor != 'github-actions[bot]'
     concurrency:
       group: release
       cancel-in-progress: false
@@ -27,17 +29,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Git author: defaults use github.actor / github.actor_id (documented on Variables reference).
+      # Optional repo vars CICD_USERNAME / CICD_EMAIL override if you want a fixed release identity.
       - name: Configure Git
         run: |
-          git config --global user.name "${{ vars.CICD_USERNAME }}"
-          git config --global user.email "${{ vars.CICD_EMAIL }}"
+          git config --global user.name "${GIT_USER_NAME}"
+          git config --global user.email "${GIT_USER_EMAIL}"
+        env:
+          GIT_USER_NAME: ${{ vars.CICD_USERNAME || github.actor }}
+          GIT_USER_EMAIL: ${{ vars.CICD_EMAIL || format('{0}+{1}@users.noreply.github.com', github.actor_id, github.actor) }}
 
       - name: Python Semantic Release
         uses: python-semantic-release/python-semantic-release@v10.5.3
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          GIT_COMMIT_AUTHOR: ${{ vars.CICD_USERNAME }} <${{ vars.CICD_EMAIL }}>
+          GIT_COMMIT_AUTHOR: ${{ format('{0} <{1}>', vars.CICD_USERNAME || github.actor, vars.CICD_EMAIL || format('{0}+{1}@users.noreply.github.com', github.actor_id, github.actor)) }}
         with:
           github_token: ${{ github.token }}
-          git_committer_name: ${{ vars.CICD_USERNAME }}
-          git_committer_email: ${{ vars.CICD_EMAIL }}
+          git_committer_name: ${{ vars.CICD_USERNAME || github.actor }}
+          git_committer_email: ${{ vars.CICD_EMAIL || format('{0}+{1}@users.noreply.github.com', github.actor_id, github.actor) }}

@@ -77,12 +77,12 @@ allowed-unresolved-imports = ["pynput.**"]
 
 [tool.semantic_release]
 assets = ["uv.lock"]
+# Skip `uv sync`: full install pulls torch/CUDA; `python -m build` only needs hatchling (isolated env).
 build_command = """
-pip install uv
-uv sync --dev
+pip install uv build
 python scripts/sync_version_for_release.py "$NEW_VERSION"
 uv lock --upgrade-package "$PACKAGE_NAME"
-pip install --upgrade pip build
+pip install --upgrade pip
 python -m build
 python scripts/verify_release_wheel.py
 tar -czf quickshell-orateur.tar.gz quickshell
