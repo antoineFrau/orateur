@@ -1,6 +1,10 @@
 # CHANGELOG
 
 
+## v0.2.2 (2026-04-06)
+### Continuous integration
+
+* ci: avoid downloading nvidia deps ([`6ac5aa2`](https://github.com/orateurhq/orateur/commit/6ac5aa25b09d7ec625f5e2a9b40433d73abd73f9))
 ## v0.2.1 (2026-04-06)
 ### Continuous integration
 
