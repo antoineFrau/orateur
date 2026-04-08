@@ -17,6 +17,7 @@ import queue
 import threading
 from typing import Any
 
+from .desktop_notify import notify as desktop_notify
 from .paths import CACHE_DIR, CMD_FIFO
 
 log = logging.getLogger(__name__)
@@ -55,6 +56,11 @@ def _run_ui_daemon(*, events_only: bool = False) -> None:
         except OSError as e:
             log.error("Failed to create FIFO: %s", e)
             _emit_error(f"Failed to create FIFO: {e}")
+            desktop_notify(
+                "UI daemon cannot start",
+                f"Could not create command FIFO: {e}",
+                urgency="critical",
+            )
             return
         while True:
             try:

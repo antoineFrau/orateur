@@ -109,6 +109,11 @@ def run(config: ConfigManager | None = None) -> None:
     stt = get_stt_backend(config.get_setting("stt_backend", "pywhispercpp"), config)
     if not stt or not stt.is_ready():
         log.error("STT failed to initialize")
+        desktop_notify(
+            "Cannot start — STT failed",
+            "Speech-to-text did not initialize. Check logs and your STT backend.",
+            urgency="critical",
+        )
         sys.exit(1)
 
     log.info("Loading TTS...")
@@ -273,6 +278,11 @@ def run(config: ConfigManager | None = None) -> None:
     shortcuts.register("sts", config.get_setting("sts_shortcut"), on_sts)
 
     if not shortcuts.start():
+        desktop_notify(
+            "Cannot start — shortcuts failed",
+            "Global hotkeys could not start. Check accessibility permissions, pynput, and shortcut settings.",
+            urgency="critical",
+        )
         sys.exit(1)
 
     log.info(
