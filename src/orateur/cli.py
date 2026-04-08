@@ -275,6 +275,10 @@ def cmd_shortcuts_list(args):
     print("secondary_shortcut:", config.get_setting("secondary_shortcut"))
     print("tts_shortcut:", config.get_setting("tts_shortcut"))
     print("sts_shortcut:", config.get_setting("sts_shortcut"))
+    print(
+        "restart_daemon_shortcut:",
+        config.get_setting("restart_daemon_shortcut"),
+    )
     return 0
 
 

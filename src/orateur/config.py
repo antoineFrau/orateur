@@ -20,6 +20,8 @@ class ConfigManager:
             "secondary_shortcut": "SUPER+ALT+E",
             "tts_shortcut": "SUPER+ALT+T",
             "sts_shortcut": "SUPER+ALT+S",
+            # Desktop app (Tauri) global shortcut to restart `orateur run`; same format as other shortcuts.
+            "restart_daemon_shortcut": "SUPER+ALT+R",
             "recording_mode": "toggle",
             "grab_keys": False,
             "selected_device_path": None,

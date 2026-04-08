@@ -4,6 +4,8 @@ export const ORATEUR_DEFAULTS: Record<string, unknown> = {
   secondary_shortcut: "SUPER+ALT+E",
   tts_shortcut: "SUPER+ALT+T",
   sts_shortcut: "SUPER+ALT+S",
+  /** Tauri-only: restart `orateur run` (same token style as `primary_shortcut`). */
+  restart_daemon_shortcut: "SUPER+ALT+R",
   recording_mode: "toggle",
   grab_keys: false,
   ui_events_mirror: true,

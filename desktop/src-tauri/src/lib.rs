@@ -478,6 +478,7 @@ pub fn run() {
             daemon::restart_orateur_daemon,
             desktop_shortcut::get_restart_daemon_shortcut,
             desktop_shortcut::set_restart_daemon_shortcut,
+            desktop_shortcut::sync_restart_daemon_shortcut,
             orateur_config::read_orateur_config,
             orateur_config::write_orateur_config_patch,
             orateur_config::get_orateur_config_path,

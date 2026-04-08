@@ -75,8 +75,6 @@ export function SettingsPanel() {
   const [mcpJsonError, setMcpJsonError] = useState<string | null>(null);
 
   const [autoStartDaemon, setAutoStartDaemon] = useState(true);
-  /** Tauri global shortcut to restart `orateur run` (stored in app config, not `config.json`). */
-  const [restartDaemonShortcut, setRestartDaemonShortcut] = useState("Super+Alt+R");
   const [checkCliOnStartup, setCheckCliOnStartup] = useState(false);
   const [cliHint, setCliHint] = useState<{ latest: string } | null>(null);
   const [cliInfo, setCliInfo] = useState<OrateurCliReleaseInfo | null>(null);
@@ -95,6 +93,17 @@ export function SettingsPanel() {
     try {
       const raw = await invoke<Record<string, unknown>>("read_orateur_config");
       const merged = mergeOrateurConfig(raw);
+      if (
+        isTauri() &&
+        raw &&
+        !Object.prototype.hasOwnProperty.call(raw, "restart_daemon_shortcut")
+      ) {
+        try {
+          merged.restart_daemon_shortcut = await invoke<string>("get_restart_daemon_shortcut");
+        } catch {
+          /* keep default from mergeOrateurConfig */
+        }
+      }
       setConfig(merged);
       try {
         setMcpJsonDraft(JSON.stringify(merged.mcpServers ?? {}, null, 2));
@@ -114,9 +123,6 @@ export function SettingsPanel() {
       .catch(() => {});
     void invoke<boolean>("get_check_orateur_cli_on_startup")
       .then(setCheckCliOnStartup)
-      .catch(() => {});
-    void invoke<string>("get_restart_daemon_shortcut")
-      .then(setRestartDaemonShortcut)
       .catch(() => {});
     try {
       const raw = sessionStorage.getItem("orateur_cli_update_hint");
@@ -162,19 +168,20 @@ export function SettingsPanel() {
           secondary_shortcut: getStr(config, "secondary_shortcut") || ORATEUR_DEFAULTS.secondary_shortcut,
           tts_shortcut: getStr(config, "tts_shortcut") || ORATEUR_DEFAULTS.tts_shortcut,
           sts_shortcut: getStr(config, "sts_shortcut") || ORATEUR_DEFAULTS.sts_shortcut,
+          restart_daemon_shortcut: getStr(config, "restart_daemon_shortcut").trim(),
           recording_mode: getStr(config, "recording_mode") || "toggle",
           grab_keys: getBool(config, "grab_keys", false),
         },
       });
-      await invoke("set_restart_daemon_shortcut", { shortcut: restartDaemonShortcut });
+      await invoke("sync_restart_daemon_shortcut");
       setSaveMsg(
-        "Shortcuts saved. Restart the speech daemon for `config.json` shortcut changes to take effect; the desktop restart shortcut updates immediately.",
+        "Shortcuts saved. Restart the speech daemon for daemon shortcut changes to take effect; the desktop restart shortcut updates immediately.",
       );
       void reloadConfig();
     } catch (e) {
       setSaveErr(e instanceof Error ? e.message : String(e));
     }
-  }, [config, reloadConfig, restartDaemonShortcut]);
+  }, [config, reloadConfig]);
 
   const saveStt = useCallback(async () => {
     setSaveMsg(null);
@@ -439,8 +446,11 @@ export function SettingsPanel() {
               <p className="settings__hint">
                 Restarts the background <code>orateur run</code> process so <code>config.json</code> changes
                 take effect. You can also use the tray menu or the global shortcut{" "}
-                <code>{restartDaemonShortcut.trim() || "(disabled — set in Shortcuts)"}</code> (configured in
-                the Shortcuts tab).
+                <code>
+                  {getStr(config, "restart_daemon_shortcut").trim() ||
+                    "(disabled — set in Shortcuts)"}
+                </code>{" "}
+                (in <code>config.json</code>, Shortcuts tab).
               </p>
             </>
           ) : null}
@@ -564,13 +574,14 @@ export function SettingsPanel() {
           />
           <h2 className="settings__section-title">Desktop app</h2>
           <p className="settings__hint">
-            Restart the speech daemon from anywhere (not the same as <code>config.json</code> shortcuts
-            above). Leave empty to disable the global shortcut; saving applies immediately.
+            Restarts the background <code>orateur run</code> process (Tauri global shortcut). Stored in{" "}
+            <code>config.json</code> as <code>restart_daemon_shortcut</code>. Leave empty to disable; saving
+            applies immediately.
           </p>
           <ShortcutRecorder
             label="Restart Orateur (this app)"
-            value={restartDaemonShortcut}
-            onChange={(v) => setRestartDaemonShortcut(v)}
+            value={getStr(config, "restart_daemon_shortcut")}
+            onChange={(v) => setKey("restart_daemon_shortcut", v)}
           />
           <label className="settings__label">
             Recording mode

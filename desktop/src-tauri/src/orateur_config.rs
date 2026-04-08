@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 /// Matches Python `paths.py`: `XDG_CONFIG_HOME/orateur`, default `~/.config/orateur`.
 pub fn orateur_config_dir(home: &Path) -> PathBuf {
@@ -13,9 +13,23 @@ pub fn orateur_config_dir(home: &Path) -> PathBuf {
         .join("orateur")
 }
 
-fn config_json_path(app: &AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn config_json_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let home = app.path().home_dir().map_err(|e| e.to_string())?;
     Ok(orateur_config_dir(&home).join("config.json"))
+}
+
+/// Same JSON as [`read_orateur_config`] (strips `$schema`).
+pub fn load_orateur_config_object<R: Runtime>(app: &AppHandle<R>) -> Result<Value, String> {
+    let path = config_json_path(app)?;
+    if !path.exists() {
+        return Ok(Value::Object(serde_json::Map::new()));
+    }
+    let s = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let mut v: Value = serde_json::from_str(&s).map_err(|e| e.to_string())?;
+    if let Some(obj) = v.as_object_mut() {
+        obj.remove("$schema");
+    }
+    Ok(v)
 }
 
 #[tauri::command]
@@ -38,23 +52,13 @@ fn strip_forbidden_patch(patch: &mut Value) {
 /// Returns JSON object from disk, or `{}` if missing. Strips `$schema` from the root object.
 #[tauri::command]
 pub fn read_orateur_config(app: AppHandle) -> Result<Value, String> {
-    let path = config_json_path(&app)?;
-    if !path.exists() {
-        return Ok(Value::Object(serde_json::Map::new()));
-    }
-    let s = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    let mut v: Value = serde_json::from_str(&s).map_err(|e| e.to_string())?;
-    if let Some(obj) = v.as_object_mut() {
-        obj.remove("$schema");
-    }
-    Ok(v)
+    load_orateur_config_object(&app)
 }
 
 /// Shallow-merge top-level keys from `patch` into existing config (or empty). Writes pretty JSON.
-#[tauri::command]
-pub fn write_orateur_config_patch(app: AppHandle, mut patch: Value) -> Result<(), String> {
+pub fn merge_write_orateur_config<R: Runtime>(app: &AppHandle<R>, mut patch: Value) -> Result<(), String> {
     strip_forbidden_patch(&mut patch);
-    let path = config_json_path(&app)?;
+    let path = config_json_path(app)?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
@@ -84,4 +88,9 @@ pub fn write_orateur_config_patch(app: AppHandle, mut patch: Value) -> Result<()
     let out = serde_json::to_string_pretty(&base).map_err(|e| e.to_string())?;
     std::fs::write(&path, out).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn write_orateur_config_patch(app: AppHandle, patch: Value) -> Result<(), String> {
+    merge_write_orateur_config(&app, patch)
 }
