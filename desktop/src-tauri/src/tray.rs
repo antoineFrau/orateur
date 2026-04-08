@@ -4,13 +4,15 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
+use crate::daemon;
 use crate::overlay_workspace;
 
 pub fn create(app: &tauri::AppHandle) -> tauri::Result<()> {
     let show_i = MenuItem::with_id(app, "show", "Show status bar", true, None::<&str>)?;
     let settings_i = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
+    let restart_i = MenuItem::with_id(app, "restart", "Restart Orateur", true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show_i, &settings_i, &quit_i])?;
+    let menu = Menu::with_items(app, &[&show_i, &settings_i, &restart_i, &quit_i])?;
 
     let icon = app.default_window_icon().unwrap().clone();
 
@@ -29,6 +31,11 @@ pub fn create(app: &tauri::AppHandle) -> tauri::Result<()> {
                 if let Some(w) = app.get_webview_window("settings") {
                     let _ = w.show();
                     let _ = w.set_focus();
+                }
+            }
+            "restart" => {
+                if let Some(holder) = app.try_state::<daemon::DaemonHolder>() {
+                    daemon::schedule_restart_daemon(app, &*holder);
                 }
             }
             "quit" => {

@@ -362,7 +362,7 @@ pub fn current_orateur_cli_semver(app: &AppHandle) -> Option<String> {
 
 /// `orateur` on PATH (including `~/.local/bin`), ready for subcommands like `run` / `setup`.
 /// Uses the same resolution as [`check_orateur_environment`] so the daemon can spawn whenever the gate passes.
-pub fn orateur_cli_command(app: &AppHandle) -> Option<Command> {
+pub fn orateur_cli_command<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<Command> {
     let home = app.path().home_dir().ok()?;
     let path_env = extended_path_for_orateur_home(&home);
     let cli_ok = orateur_cli_version_with_path(&home).is_some()

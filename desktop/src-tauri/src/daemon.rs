@@ -7,7 +7,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::env_check::{self, run_cmd_timeout, SETUP_TIMEOUT};
 
@@ -74,7 +74,7 @@ fn append_daemon_log(path: &Path, line: &str) {
     }
 }
 
-fn maybe_run_setup(app: &AppHandle, home: &Path, log_path: &Path) {
+fn maybe_run_setup<R: Runtime>(app: &AppHandle<R>, home: &Path, log_path: &Path) {
     if pywhispercpp_import_ok(home) {
         return;
     }
@@ -106,7 +106,7 @@ fn maybe_run_setup(app: &AppHandle, home: &Path, log_path: &Path) {
     }
 }
 
-fn daemon_log_path(app: &AppHandle) -> Option<PathBuf> {
+fn daemon_log_path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
     let home = app.path().home_dir().ok()?;
     let cache = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
@@ -114,7 +114,7 @@ fn daemon_log_path(app: &AppHandle) -> Option<PathBuf> {
     Some(cache.join("orateur").join("desktop-daemon.log"))
 }
 
-pub fn is_auto_start_enabled(app: &AppHandle) -> bool {
+pub fn is_auto_start_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
     let Ok(dir) = app.path().app_config_dir() else {
         return true;
     };
@@ -164,7 +164,7 @@ pub fn set_check_orateur_cli_on_startup(app: &AppHandle, enabled: bool) -> Resul
     std::fs::write(&p, v).map_err(|e| e.to_string())
 }
 
-pub fn spawn_orateur_daemon_if_needed(app: &AppHandle, holder: &Arc<DaemonHolderInner>) {
+pub fn spawn_orateur_daemon_if_needed<R: Runtime>(app: &AppHandle<R>, holder: &Arc<DaemonHolderInner>) {
     if !is_auto_start_enabled(app) {
         return;
     }
@@ -264,14 +264,19 @@ pub fn trigger_orateur_daemon(app: AppHandle, holder: tauri::State<DaemonHolder>
     Ok(())
 }
 
-/// Kill the spawned `orateur run` child (if any) and spawn again when auto-start is enabled.
-#[tauri::command]
-pub fn restart_orateur_daemon(app: AppHandle, holder: tauri::State<DaemonHolder>) -> Result<(), String> {
+/// Kill the spawned `orateur run` child (if any) and spawn again when auto-start is enabled (same as the
+/// `restart_orateur_daemon` command).
+pub fn schedule_restart_daemon<R: Runtime>(app: &AppHandle<R>, holder: &DaemonHolder) {
     let inner = holder.0.clone();
     let app2 = app.clone();
     std::thread::spawn(move || {
         kill_daemon(&inner);
         spawn_orateur_daemon_if_needed(&app2, &inner);
     });
+}
+
+#[tauri::command]
+pub fn restart_orateur_daemon(app: AppHandle, holder: tauri::State<DaemonHolder>) -> Result<(), String> {
+    schedule_restart_daemon(&app, &holder);
     Ok(())
 }

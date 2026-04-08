@@ -12,6 +12,8 @@ mod orateur_config;
 
 mod daemon;
 
+mod desktop_shortcut;
+
 mod overlay_workspace;
 
 #[cfg(target_os = "macos")]
@@ -382,6 +384,7 @@ pub fn run() {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+        builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
     }
 
     let app = builder
@@ -447,6 +450,11 @@ pub fn run() {
                 macos_overlay_panel::init_overlay_panel(app.handle())?;
             }
 
+            #[cfg(not(any(target_os = "android", target_os = "ios")))]
+            if let Err(e) = desktop_shortcut::apply_restart_daemon_shortcut(app.handle()) {
+                eprintln!("orateur-desktop: could not register restart shortcut: {e}");
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -468,6 +476,8 @@ pub fn run() {
             daemon::set_auto_start_daemon,
             daemon::trigger_orateur_daemon,
             daemon::restart_orateur_daemon,
+            desktop_shortcut::get_restart_daemon_shortcut,
+            desktop_shortcut::set_restart_daemon_shortcut,
             orateur_config::read_orateur_config,
             orateur_config::write_orateur_config_patch,
             orateur_config::get_orateur_config_path,
