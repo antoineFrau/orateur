@@ -23,6 +23,7 @@ export const ORATEUR_DEFAULTS: Record<string, unknown> = {
   stt_whisper_verbose: false,
   tts_backend: "pocket_tts",
   tts_voice: "alba",
+  tts_auto_language: true,
   tts_volume: 1.0,
   llm_backend: "ollama",
   llm_model: "llama3.2",

@@ -38,6 +38,7 @@ class ConfigManager:
             "stt_whisper_verbose": False,
             "tts_backend": "pocket_tts",
             "tts_voice": "alba",
+            "tts_auto_language": True,
             "tts_volume": 1.0,
             # Use "none", "off", or "disabled" to skip Ollama (speech-to-speech unavailable).
             "llm_backend": "ollama",

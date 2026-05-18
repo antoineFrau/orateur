@@ -244,6 +244,7 @@ export function SettingsPanel() {
         patch: {
           tts_backend: getStr(config, "tts_backend") || String(ORATEUR_DEFAULTS.tts_backend),
           tts_voice: getStr(config, "tts_voice") || String(ORATEUR_DEFAULTS.tts_voice),
+          tts_auto_language: getBool(config, "tts_auto_language", true),
           tts_volume: vol,
         },
       });
@@ -745,6 +746,20 @@ export function SettingsPanel() {
               value={getStr(config, "tts_voice")}
               onChange={(e) => setKey("tts_voice", e.target.value)}
             />
+          </label>
+          <label className="settings__label settings__label--checkbox">
+            <input
+              type="checkbox"
+              checked={getBool(config, "tts_auto_language", true)}
+              onChange={(e) => setKey("tts_auto_language", e.target.checked)}
+            />
+            <span className="settings__checkbox-text">
+              <span className="settings__checkbox-lead">Detect language automatically</span>
+              <span className="settings__checkbox-sub">
+                Picks pocket-tts language model and voice from text (en, fr, de, pt, it, es). English
+                uses the voice above.
+              </span>
+            </span>
           </label>
           <label className="settings__label">
             Volume (0–1)

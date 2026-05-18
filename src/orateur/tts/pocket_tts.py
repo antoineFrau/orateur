@@ -1,4 +1,4 @@
-"""Pocket TTS backend."""
+"""Pocket TTS backend with optional automatic language detection."""
 
 import logging
 import shutil
@@ -15,6 +15,28 @@ from .base import TTSBackend
 
 log = logging.getLogger(__name__)
 
+DEFAULT_POCKET_LANGUAGE = "english"
+MIN_DETECT_CHARS = 15
+
+# langdetect ISO 639-1 -> (pocket-tts load_model language, default catalog voice)
+LANGUAGE_MAP: dict[str, tuple[str, str]] = {
+    "en": ("english", ""),  # voice filled from config tts_voice
+    "fr": ("french_24l", "estelle"),
+    "de": ("german_24l", "juergen"),
+    "pt": ("portuguese", "rafael"),
+    "it": ("italian", "giovanni"),
+    "es": ("spanish_24l", "lola"),
+}
+
+# Reverse map: catalog voice -> pocket language (for explicit voice= callers)
+VOICE_TO_LANGUAGE: dict[str, str] = {
+    "estelle": "french_24l",
+    "juergen": "german_24l",
+    "rafael": "portuguese",
+    "giovanni": "italian",
+    "lola": "spanish_24l",
+}
+
 POCKET_TTS_VOICES = [
     "alba",
     "marius",
@@ -24,19 +46,25 @@ POCKET_TTS_VOICES = [
     "cosette",
     "eponine",
     "azelma",
+    "estelle",
+    "juergen",
+    "rafael",
+    "giovanni",
+    "lola",
 ]
 
 
 class PocketTTSBackend(TTSBackend):
-    """Pocket TTS text-to-speech."""
+    """Pocket TTS text-to-speech with per-language model loading."""
 
     def __init__(self, config):
         super().__init__(config)
         self.config = config
-        self._model = None
-        self._voice_state_cache = {}
+        self._models: dict[str, object] = {}
+        self._voice_state_cache: dict[tuple[str, str], object] = {}
         self.ready = False
         self.voice = config.get_setting("tts_voice", "alba")
+        self.auto_language = bool(config.get_setting("tts_auto_language", True))
         self.volume = max(0.1, min(1.0, float(config.get_setting("tts_volume", 1.0))))
         self._playback_lock = threading.Lock()
         self._playback_proc: Optional[subprocess.Popen] = None
@@ -45,13 +73,18 @@ class PocketTTSBackend(TTSBackend):
     def initialize(self, config) -> bool:
         self.config = config
         self.voice = config.get_setting("tts_voice", "alba")
+        self.auto_language = bool(config.get_setting("tts_auto_language", True))
         self.volume = max(0.1, min(1.0, float(config.get_setting("tts_volume", 1.0))))
         try:
             from pocket_tts import TTSModel
 
-            self._model = TTSModel.load_model()
+            self._models[DEFAULT_POCKET_LANGUAGE] = TTSModel.load_model(language=DEFAULT_POCKET_LANGUAGE)
             self.ready = True
-            log.info("Pocket TTS ready - voice: %s", self.voice)
+            log.info(
+                "Pocket TTS ready - voice: %s, auto_language: %s",
+                self.voice,
+                self.auto_language,
+            )
             return True
         except ImportError as e:
             log.warning("pocket-tts not installed: %s", e)
@@ -60,14 +93,58 @@ class PocketTTSBackend(TTSBackend):
             log.warning("Pocket TTS init failed: %s", e)
             return False
 
-    def _get_voice_state(self, voice: Optional[str] = None):
-        voice = voice or self.voice
-        model = self._model
-        if model is None:
-            raise RuntimeError("Pocket TTS model not loaded")
-        if voice not in self._voice_state_cache:
-            self._voice_state_cache[voice] = model.get_state_for_audio_prompt(voice)
-        return self._voice_state_cache[voice]
+    def _get_model(self, language: str):
+        if language in self._models:
+            return self._models[language]
+        from pocket_tts import TTSModel
+
+        log.info("Pocket TTS: loading language model %s", language)
+        self._models[language] = TTSModel.load_model(language=language)
+        return self._models[language]
+
+    def _detect_iso_code(self, text: str) -> Optional[str]:
+        stripped = text.strip()
+        if len(stripped) < MIN_DETECT_CHARS:
+            return None
+        try:
+            from langdetect import detect
+
+            return detect(stripped).split("-")[0].lower()
+        except Exception as e:
+            log.debug("Language detection failed: %s", e)
+            return None
+
+    def _resolve_language_and_voice(
+        self,
+        text: str,
+        voice: Optional[str],
+    ) -> tuple[str, str]:
+        """Return (pocket_language, voice_name) for synthesis."""
+        default_voice = self.voice
+        if voice:
+            lang = VOICE_TO_LANGUAGE.get(voice, DEFAULT_POCKET_LANGUAGE)
+            return lang, voice
+
+        if not self.auto_language:
+            return DEFAULT_POCKET_LANGUAGE, default_voice
+
+        iso = self._detect_iso_code(text)
+        if iso and iso in LANGUAGE_MAP:
+            lang, catalog_voice = LANGUAGE_MAP[iso]
+            resolved_voice = default_voice if iso == "en" else catalog_voice
+            log.info("Pocket TTS: detected %s -> language=%s voice=%s", iso, lang, resolved_voice)
+            return lang, resolved_voice
+
+        if iso:
+            log.debug("Pocket TTS: unsupported language %s, using English", iso)
+        return DEFAULT_POCKET_LANGUAGE, default_voice
+
+    def _get_voice_state(self, language: str, voice: str):
+        model = self._get_model(language)
+        cache_key = (language, voice)
+        if cache_key not in self._voice_state_cache:
+            self._voice_state_cache[cache_key] = model.get_state_for_audio_prompt(voice)
+        return self._voice_state_cache[cache_key], model
 
     def stop_playback(self) -> None:
         self._stop_event.set()
@@ -79,16 +156,11 @@ class PocketTTSBackend(TTSBackend):
             except Exception:
                 pass
 
-    def _get_streaming_player_cmd(self, volume: float) -> Optional[list]:
-        # ffplay (and similar) raw-PCM-over-stdin streaming often exits non-zero or breaks the
-        # pipe on macOS when Homebrew ffplay is on PATH. WAV + afplay is reliable instead.
+    def _get_streaming_player_cmd(self, sample_rate: int, volume: float) -> Optional[list]:
         if sys.platform == "darwin":
             return None
-        model = self._model
-        if model is None:
-            return None
         vol = max(0.1, min(1.0, float(volume)))
-        sr = str(model.sample_rate)
+        sr = str(sample_rate)
         for check, cmd in [
             (
                 "pw-play",
@@ -140,11 +212,12 @@ class PocketTTSBackend(TTSBackend):
     ) -> Optional[Path]:
         if not text or not text.strip():
             return None
-        if not self.ready or not self._model:
+        if not self.ready or not self._models:
             return None
         try:
-            voice_state = self._get_voice_state(voice)
-            audio = self._model.generate_audio(voice_state, text)
+            language, resolved_voice = self._resolve_language_and_voice(text, voice)
+            voice_state, model = self._get_voice_state(language, resolved_voice)
+            audio = model.generate_audio(voice_state, text)
             import scipy.io.wavfile
 
             from ..paths import TEMP_DIR
@@ -152,7 +225,7 @@ class PocketTTSBackend(TTSBackend):
             TEMP_DIR.mkdir(parents=True, exist_ok=True)
             out_path = TEMP_DIR / "tts_output.wav"
             arr = audio.numpy() if hasattr(audio, "numpy") else audio
-            scipy.io.wavfile.write(str(out_path), self._model.sample_rate, arr)
+            scipy.io.wavfile.write(str(out_path), model.sample_rate, arr)
             return out_path
         except Exception as e:
             log.warning("Synthesis failed: %s", e)
@@ -169,10 +242,12 @@ class PocketTTSBackend(TTSBackend):
             return False
         vol = volume if volume is not None else self.volume
         vol = max(0.1, min(1.0, float(vol)))
-        if not self.ready or not self._model:
+        if not self.ready or not self._models:
             return False
         self._stop_event.clear()
-        cmd = self._get_streaming_player_cmd(vol)
+        language, resolved_voice = self._resolve_language_and_voice(text, voice)
+        _, model = self._get_voice_state(language, resolved_voice)
+        cmd = self._get_streaming_player_cmd(model.sample_rate, vol)
         if not cmd:
             log.info(
                 "Pocket TTS: using WAV file + system player (macOS skips stdin streaming; "
@@ -187,7 +262,7 @@ class PocketTTSBackend(TTSBackend):
         log.info("Pocket TTS: streaming playback via %s", cmd[0])
         proc: Optional[subprocess.Popen] = None
         try:
-            voice_state = self._get_voice_state(voice)
+            voice_state, model = self._get_voice_state(language, resolved_voice)
             proc = subprocess.Popen(
                 cmd,
                 stdin=subprocess.PIPE,
@@ -202,7 +277,7 @@ class PocketTTSBackend(TTSBackend):
                 self._playback_proc = proc
             interrupted = False
             try:
-                for chunk in self._model.generate_audio_stream(voice_state, text):
+                for chunk in model.generate_audio_stream(voice_state, text):
                     if self._stop_event.is_set():
                         interrupted = True
                         break
@@ -255,7 +330,6 @@ class PocketTTSBackend(TTSBackend):
 
     def _play_file(self, wav_path: Path, volume: Optional[float] = None) -> bool:
         vol = 1.0 if volume is None else max(0.1, min(1.0, float(volume)))
-        # macOS ships afplay; Linux/BSD typically use pipewire/pulse/alsa or ffplay.
         for player in ["pw-play", "paplay", "aplay", "ffplay", "afplay"]:
             if not shutil.which(player):
                 continue

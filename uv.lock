@@ -732,6 +732,15 @@ wheels = [
 ]
 
 [[package]]
+name = "langdetect"
+version = "1.0.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0e/72/a3add0e4eec4eb9e2569554f7c70f4a3c27712f40e3284d483e88094cc0e/langdetect-1.0.9.tar.gz", hash = "sha256:cbc1fef89f8d062739774bd51eda3da3274006b3661d199c2655f6b3f6d605a0", size = 981474, upload-time = "2021-05-07T07:54:13.562Z" }
+
+[[package]]
 name = "markdown"
 version = "3.10.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1350,6 +1359,7 @@ version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "evdev", marker = "sys_platform == 'linux'" },
+    { name = "langdetect" },
     { name = "mcp", extra = ["cli"] },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -1379,10 +1389,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "evdev", marker = "sys_platform == 'linux'", specifier = ">=1.6.0" },
+    { name = "langdetect", specifier = ">=1.0.9" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.0.0" },
     { name = "numpy", specifier = ">=1.21.0" },
     { name = "ollama", specifier = ">=0.3.0" },
-    { name = "pocket-tts", specifier = ">=0.1.0" },
+    { name = "pocket-tts", specifier = ">=2.1.0" },
     { name = "psutil", specifier = ">=5.8.0" },
     { name = "pynput", marker = "sys_platform == 'darwin' or sys_platform == 'win32'", specifier = ">=1.7.0" },
     { name = "pyperclip", specifier = ">=1.8.2" },
@@ -1441,7 +1452,7 @@ wheels = [
 
 [[package]]
 name = "pocket-tts"
-version = "1.1.1"
+version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "beartype" },
@@ -1462,9 +1473,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ab/3e/2f15ee05b3dcf6ec08251f5030a3deb4643d2ecd55e17a4ca8998888c1df/pocket_tts-1.1.1.tar.gz", hash = "sha256:cdd234e49299e8fe927bd0b93c164c7785bdd83bed302622e218bcda3944f603", size = 618656, upload-time = "2026-02-17T17:16:25.393Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/2c/7445f57163bb40e2b2fab4df70d18a4216c4965cdf74196344d95859fc07/pocket_tts-2.1.0.tar.gz", hash = "sha256:6f244f445413400f686506f5ccfb75048547caab7b455b927f4a854c551c60a8", size = 642108, upload-time = "2026-05-04T14:00:29.207Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4e/9d/b8957a9c738ac4c6f29f84cf268c3ff766ea96d4d5212d0c7320193e6394/pocket_tts-1.1.1-py3-none-any.whl", hash = "sha256:46d97789a4a1aa655b3b9659d6e880f79eda56f5fb03d4444fd0e9318e1224dd", size = 52529, upload-time = "2026-02-17T17:16:23.528Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/63/d16958d388efee3f0fc7287e1418ed652ddbc2b61ff4f581f0ad0abce625/pocket_tts-2.1.0-py3-none-any.whl", hash = "sha256:7b8f01d3e52aa7df84887b711994586bdc875e024a8b40a15f757feeeb29f752", size = 68096, upload-time = "2026-05-04T14:00:27.547Z" },
 ]
 
 [[package]]
