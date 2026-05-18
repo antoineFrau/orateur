@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.3.0 (2026-05-18)
+### Chores
+
+* chore: bump desktop version to 0.2.2 [skip ci] ([`5f374e6`](https://github.com/orateurhq/orateur/commit/5f374e646ce01833cae1e7f847e4812d50ab9f85))### Features
+
+* feat: tts language detection and automatic voice selection ([`4343543`](https://github.com/orateurhq/orateur/commit/434354397dbe5c6570734f610e3a0f4dba202d33))### Unknown
+
+* Update to 0.2.2 ([`f5c459d`](https://github.com/orateurhq/orateur/commit/f5c459d87a47deacd083addf07c0ef372c66c72a))
+* Shortcut for restart ([`fe597db`](https://github.com/orateurhq/orateur/commit/fe597db4eae4735f7b2428c07e74d2b3addc8ade))
+* Improve notificaiton ([`ca80d72`](https://github.com/orateurhq/orateur/commit/ca80d7216398a989e92c1bd09bd725b5d03ed5bb))
+* Add restart ability ([`2b5a828`](https://github.com/orateurhq/orateur/commit/2b5a828acf207fa413c789d58012128a5d6da756))
 ## v0.2.2 (2026-04-06)
 ### Continuous integration
 
